@@ -12,7 +12,7 @@
  *  parser.c
  */
 
-#define MAX_TOKEN_LENGTH 256
+#define ATTO_MAX_TOKEN_LENGTH 256
 
 struct atto_token {
   char *token;
@@ -45,4 +45,37 @@ struct atto_token *atto_lex_string(const char *string);
 struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left);
 void destroy_token_list(struct atto_token *head);
 void destroy_ast(struct atto_ast_node *root);
+
+/*
+ *  vm.c
+ */
+
+struct atto_vm_function {
+  uint8_t number_of_arguments;
+
+  uint32_t number_of_constants;
+  uint64_t *constants;
+
+  uint32_t number_of_instructions;
+  uint32_t *instructions;
+};
+
+struct atto_vm_state {
+  uint32_t number_of_functions;
+  struct atto_vm_function **functions;
+
+  #define ATTO_MAX_REGISTERS 256
+  uint64_t registers[ATTO_MAX_REGISTERS];
+
+  uint32_t current_function;
+  uint32_t current_instruction;
+};
+
+void error(struct atto_vm_state *A, char *reason);
+struct atto_vm_state *allocate_state(uint32_t number_of_functions);
+void destroy_state(struct atto_vm_state *A);
+struct atto_vm_function *allocate_function(uint32_t number_of_arguments,
+  uint32_t number_of_constants, uint32_t number_of_instructions);
+void destroy_function(struct atto_vm_function *f);
+uint32_t perform_step(struct atto_vm_state *A);
 

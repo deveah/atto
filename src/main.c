@@ -44,6 +44,9 @@ int main(int argc, char **argv)
   (void) argc;
   (void) argv;
 
+  /*
+   *  parser/lexer testing
+
   struct atto_token *token_list = atto_lex_string("(a b (c (d e) f)) (g)");
 
   struct atto_token *left = NULL;
@@ -52,6 +55,36 @@ int main(int argc, char **argv)
 
   destroy_token_list(token_list);
   destroy_ast(root);
+
+   */
+
+  /*  allocate a state with one function */
+  struct atto_vm_state *A = allocate_state(1);
+
+  /*
+   *  allocate a function with:
+   *  1 argument
+   *  1 constant, and
+   *  3 instructions
+   */
+  struct atto_vm_function *f1 = allocate_function(1, 1, 3);
+  f1->constants[0] = 1;
+  f1->instructions[0] = 0x01010000; /* r1 = constant #0 */
+  f1->instructions[1] = 0x02020001; /* r2 = r0 + r1 */
+  f1->instructions[2] = 0xf0020000; /* return r2 */
+
+  A->functions[0] = f1;
+
+  /*  r0 = 5 (first argument of the function) */
+  A->registers[0] = 5;
+
+  /*  initialize the state of the machine */
+  A->current_function = 0;
+  A->current_instruction = 0;
+
+  do {
+    perform_step(A);
+  } while(A->current_function != 0xffffffff);
 
   return 0;
 }

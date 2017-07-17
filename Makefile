@@ -1,6 +1,6 @@
 CC=clang
 CFLAGS=-Wall -Wextra -g3 -ansi
-SRCS=src/parser.c src/main.c
+SRCS=src/parser.c src/main.c src/vm.c
 OBJS=$(SRCS:.c=.o)
 TARGET=atto
 

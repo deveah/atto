@@ -74,7 +74,7 @@ struct atto_token *atto_lex_string(const char *string)
   struct atto_token *token_list = NULL;
   struct atto_token *last_token = NULL;
 
-  char temp_token[MAX_TOKEN_LENGTH];
+  char temp_token[ATTO_MAX_TOKEN_LENGTH];
   size_t temp_token_index = 0;
 
   while (*string) {
