@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Atto</title>
+  <meta charset="utf-8">
+
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/7.0.0/normalize.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,100i,300" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Roboto+Mono:100" rel="stylesheet">
+
+  <style type="text/css">
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Roboto', sans-serif;
+    font-size: 24px;
+    font-weight: 100;
+    color: #333;
+  }
+
+  body {
+    padding: 5rem 0;
+    max-width: 40rem;
+    margin: 0 auto;
+  }
+
+  header {
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 300;
+    margin: 0;
+    padding: 0;
+  }
+
+  p {
+    line-height: 1.75;
+  }
+
+  a {
+    text-decoration: none;
+    color: #888;
+  }
+
+  a:hover {
+    color: #000;
+  }
+
+  a:active {
+    color: #888;
+    background: #333;
+  }
+
+  code {
+    margin: 2rem;
+    padding: 0.5rem;
+    display: block;
+    line-height: 1.5;
+    background-color: #f8f8f8;
+    font-family: 'Roboto Mono', monospace;
+    font-weight: 100;
+    font-size: 0.875rem;
+  }
+
+  header h1 {
+    color: white;
+    font-weight: 100;
+    background: linear-gradient(270deg, #43f500, #c93df2);
+    background-size: 400% 400%;
+    -webkit-animation: logo 10s ease infinite;
+    -moz-animation: logo 10s ease infinite;
+    animation: logo 10s ease infinite;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @-webkit-keyframes logo {
+      0%{background-position:0% 50%}
+      50%{background-position:100% 50%}
+      100%{background-position:0% 50%}
+  }
+  @-moz-keyframes logo {
+      0%{background-position:0% 50%}
+      50%{background-position:100% 50%}
+      100%{background-position:0% 50%}
+  }
+  @keyframes logo { 
+      0%{background-position:0% 50%}
+      50%{background-position:100% 50%}
+      100%{background-position:0% 50%}
+  }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Atto</h1>
+    A small and fast subset-of-Scheme JIT interpreter
+  </header>
+
+  <section id="table-of-contents">
+  </section>
+
+  <section id="about">
+    <h2>About</h2>
+
+    <p><em>Atto</em> is a small and fast subset-of-Scheme interpreter,
+    leveraging the power of <a href="https://luajit.org/dynasm.html">DynASM</a>.
+    It is primarily developed as a diploma project at the
+    <a href="http://www.electronica.pub.ro/">Faculty of Electronics, Telecommunications and Information Technology</a>.</p>
+
+    <p>The language implements only a part of the
+    <a href="http://www.schemers.org/Documents/Standards/R5RS/">R<sup>5</sup>RS</a>,
+    avoiding impure functions and features, and thus enabling
+    <a href="https://en.wikipedia.org/wiki/Lazy_evaluation">lazy evaluation</a>
+    and <a href="https://en.wikipedia.org/wiki/Memoization">memoization</a>.</p>
+  </section>
+
+  <section id="try-it-out">
+    <h3>Try it out!</h3>
+
+    <code>
+    $ git clone https://github.com/deveah/atto.git<br>
+    $ cd atto<br>
+    $ make<br>
+    $ ./atto examples/fib.atto<br>
+    </code>
+  </section>
+</body>
+</html>
