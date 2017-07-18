@@ -69,6 +69,8 @@ struct atto_vm_state {
 
   uint32_t current_function;
   uint32_t current_instruction;
+
+  uint8_t flags;
 };
 
 void error(struct atto_vm_state *A, char *reason);

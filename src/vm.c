@@ -127,8 +127,7 @@ uint32_t perform_step(struct atto_vm_state *A)
   }
 
   /*  add -- 02 dest(u8) op1(u8) op2(u8) */
-  case 0x02:
-  {
+  case 0x02: {
     uint8_t dest = (current_instruction & 0x00ff0000) >> 16;
     uint8_t op1  = (current_instruction & 0x0000ff00) >>  8;
     uint8_t op2  = (current_instruction & 0x000000ff);
@@ -136,9 +135,52 @@ uint32_t perform_step(struct atto_vm_state *A)
     break;
   }
   
+  /*  sub -- 03 dest(u8) op1(u8) op2(u8) */
+  case 0x03: {
+    uint8_t dest = (current_instruction & 0x00ff0000) >> 16;
+    uint8_t op1  = (current_instruction & 0x0000ff00) >>  8;
+    uint8_t op2  = (current_instruction & 0x000000ff);
+    A->registers[dest] = A->registers[op1] - A->registers[op2];
+    break;
+  }
+
+  /*  mul -- 04 dest(u8) op1(u8) op2(u8) */
+  case 0x04: {
+    uint8_t dest = (current_instruction & 0x00ff0000) >> 16;
+    uint8_t op1  = (current_instruction & 0x0000ff00) >>  8;
+    uint8_t op2  = (current_instruction & 0x000000ff);
+    A->registers[dest] = A->registers[op1] * A->registers[op2];
+    break;
+  }
+
+  /*  div -- 05 dest(u8) op1(u8) op2(u8) */
+  case 0x05: {
+    uint8_t dest = (current_instruction & 0x00ff0000) >> 16;
+    uint8_t op1  = (current_instruction & 0x0000ff00) >>  8;
+    uint8_t op2  = (current_instruction & 0x000000ff);
+    A->registers[dest] = A->registers[op1] / A->registers[op2];
+    break;
+  }
+
+  /*  jmp -- 10 reg(u8) */
+  case 0x10: {
+    uint8_t reg = (current_instruction & 0x00ff0000) >> 16;
+    A->current_instruction = A->registers[reg];
+    break;
+  }
+
+  /*  conditional-jmp -- 11 reg(u8) mask(u8) */
+  case 0x11: {
+    uint8_t reg  = (current_instruction & 0x00ff0000) >> 16;
+    uint8_t mask = (current_instruction & 0x0000ff00) >>  8;
+    if (A->flags & mask) {
+      A->current_instruction = A->registers[reg];
+    }
+    break;
+  }
+
   /*  return -- f0 reg(u8) */
-  case 0xf0:
-  {
+  case 0xf0: {
     uint8_t reg = (current_instruction & 0x00ff0000) >> 16;
     printf("Returned value: 0x%016x\n", A->registers[reg]);
 
