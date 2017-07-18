@@ -64,14 +64,20 @@ int main(int argc, char **argv)
   /*
    *  allocate a function with:
    *  1 argument
-   *  1 constant, and
-   *  3 instructions
+   *  3 constants, and
+   *  7 instructions
    */
-  struct atto_vm_function *f1 = allocate_function(1, 1, 3);
+  struct atto_vm_function *f1 = allocate_function(1, 3, 7);
   f1->constants[0] = 1;
+  f1->constants[1] = 6;
+  f1->constants[2] = 6;
   f1->instructions[0] = 0x01010000; /* r1 = constant #0 */
   f1->instructions[1] = 0x02020001; /* r2 = r0 + r1 */
-  f1->instructions[2] = 0xf0020000; /* return r2 */
+  f1->instructions[2] = 0x01030100; /* r3 = constant #1 */
+  f1->instructions[3] = 0x20020300; /* test r2, r3 */
+  f1->instructions[4] = 0x11020100; /* branch if equal to constant #2 */
+  f1->instructions[5] = 0xffffffff; /* illegal (trap) instruction */
+  f1->instructions[6] = 0xf0020000; /* return r2 */
 
   A->functions[0] = f1;
 
@@ -85,6 +91,8 @@ int main(int argc, char **argv)
   do {
     perform_step(A);
   } while(A->current_function != 0xffffffff);
+
+  printf("flags at exit: %02x\n", A->flags);
 
   return 0;
 }

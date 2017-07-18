@@ -105,6 +105,7 @@ uint32_t perform_step(struct atto_vm_state *A)
   }
 
   uint32_t current_instruction = A->functions[A->current_function]->instructions[A->current_instruction];
+  printf("current instruction: [%08x] %08x; flags: %02x\n", A->current_instruction, current_instruction, A->flags);
 
   uint8_t opcode = current_instruction >> 24;
 
@@ -162,20 +163,43 @@ uint32_t perform_step(struct atto_vm_state *A)
     break;
   }
 
-  /*  jmp -- 10 reg(u8) */
+  /*  jmp -- 10 index(u8) */
   case 0x10: {
-    uint8_t reg = (current_instruction & 0x00ff0000) >> 16;
-    A->current_instruction = A->registers[reg];
+    uint8_t index = (current_instruction & 0x00ff0000) >> 16;
+    A->current_instruction = A->functions[A->current_function]->constants[index];
     break;
   }
 
-  /*  conditional-jmp -- 11 reg(u8) mask(u8) */
+  /*  conditional-jmp -- 11 index(u8) mask(u8) */
   case 0x11: {
-    uint8_t reg  = (current_instruction & 0x00ff0000) >> 16;
-    uint8_t mask = (current_instruction & 0x0000ff00) >>  8;
-    if (A->flags & mask) {
-      A->current_instruction = A->registers[reg];
+    uint8_t index = (current_instruction & 0x00ff0000) >> 16;
+    uint8_t mask  = (current_instruction & 0x0000ff00) >>  8;
+    if (A->flags == mask) {
+      /*  the -1 compensates for the automatic instruction pointer advancement */
+      A->current_instruction = A->functions[A->current_function]->constants[index] - 1;
     }
+    break;
+  }
+
+  /*  test-reg -- 20 op1(u8) op2(u8); sets flags */
+  case 0x20: {
+    uint8_t  op1  = (current_instruction & 0x00ff0000) >> 16;
+    uint8_t  op2  = (current_instruction & 0x0000ff00) >>  8;
+    uint64_t reg1 = A->registers[op1];
+    uint64_t reg2 = A->registers[op2];
+
+    A->flags = 0x00;
+
+    if (reg1 == reg2) {
+      A->flags |= ATTO_VMFLAG_EQUAL;
+    }
+    if (reg1 >  reg2) {
+      A->flags |= ATTO_VMFLAG_GREATER;
+    }
+    if (reg1 <  reg2) {
+      A->flags |= ATTO_VMFLAG_LESSER;
+    }
+
     break;
   }
 

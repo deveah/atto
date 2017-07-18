@@ -70,6 +70,9 @@ struct atto_vm_state {
   uint32_t current_function;
   uint32_t current_instruction;
 
+  #define ATTO_VMFLAG_EQUAL   (1<<0)
+  #define ATTO_VMFLAG_GREATER (1<<1)
+  #define ATTO_VMFLAG_LESSER  (1<<2)
   uint8_t flags;
 };
 
