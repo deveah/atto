@@ -85,12 +85,12 @@ int main(int argc, char **argv)
   A->registers[0] = 5;
 
   /*  initialize the state of the machine */
-  A->current_function = 0;
-  A->current_instruction = 0;
+  A->current_instruction_pointer.function_index    = 0;
+  A->current_instruction_pointer.instruction_index = 0;
 
   do {
     perform_step(A);
-  } while(A->current_function != 0xffffffff);
+  } while(A->current_instruction_pointer.function_index != 0xffffffff);
 
   printf("flags at exit: %02x\n", A->flags);
 

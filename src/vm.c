@@ -42,8 +42,8 @@ struct atto_vm_state *allocate_state(uint32_t number_of_functions)
 
   /*  0xffffffff is a signal value, indicating that these values have not been
    *  set (indicative that the virtual machine has not been started */
-  A->current_function    = 0xffffffff;
-  A->current_instruction = 0xffffffff;
+  A->current_instruction_pointer.function_index    = 0xffffffff;
+  A->current_instruction_pointer.instruction_index = 0xffffffff;
 
   return A;
 }
@@ -98,14 +98,17 @@ void destroy_function(struct atto_vm_function *f)
 
 uint32_t perform_step(struct atto_vm_state *A)
 {
+  uint32_t current_function_index    = A->current_instruction_pointer.function_index;
+  uint32_t current_instruction_index = A->current_instruction_pointer.instruction_index;
+
   /*  must be sure not to attempt to perform a step on an uninitialized
    *  state */
-  if ((A->current_function == 0xffffffff) || (A->current_instruction == 0xffffffff)) {
+  if ((current_function_index == 0xffffffff) || (current_instruction_index == 0xffffffff)) {
     error(A, "Illegal state (uninitialized virtual machine)");
   }
 
-  uint32_t current_instruction = A->functions[A->current_function]->instructions[A->current_instruction];
-  printf("current instruction: [%08x] %08x; flags: %02x\n", A->current_instruction, current_instruction, A->flags);
+  uint32_t current_instruction = A->functions[current_function_index]->instructions[current_instruction_index];
+  printf("current instruction: [%08x] %08x; flags: %02x\n", current_instruction_index, current_instruction, A->flags);
 
   uint8_t opcode = current_instruction >> 24;
 
@@ -123,7 +126,7 @@ uint32_t perform_step(struct atto_vm_state *A)
   case 0x01: {
     uint8_t dest  = (current_instruction & 0x00ff0000) >> 16;
     uint8_t index = (current_instruction & 0x0000ff00) >>  8;
-    A->registers[dest] = A->functions[A->current_function]->constants[index];
+    A->registers[dest] = A->functions[current_function_index]->constants[index];
     break;
   }
 
@@ -166,7 +169,7 @@ uint32_t perform_step(struct atto_vm_state *A)
   /*  jmp -- 10 index(u8) */
   case 0x10: {
     uint8_t index = (current_instruction & 0x00ff0000) >> 16;
-    A->current_instruction = A->functions[A->current_function]->constants[index];
+    A->current_instruction_pointer.instruction_index = A->functions[current_function_index]->constants[index];
     break;
   }
 
@@ -176,7 +179,7 @@ uint32_t perform_step(struct atto_vm_state *A)
     uint8_t mask  = (current_instruction & 0x0000ff00) >>  8;
     if (A->flags == mask) {
       /*  the -1 compensates for the automatic instruction pointer advancement */
-      A->current_instruction = A->functions[A->current_function]->constants[index] - 1;
+      A->current_instruction_pointer.instruction_index = A->functions[current_function_index]->constants[index] - 1;
     }
     break;
   }
@@ -209,8 +212,8 @@ uint32_t perform_step(struct atto_vm_state *A)
     printf("Returned value: 0x%016x\n", A->registers[reg]);
 
     /*  mark the machine as halted */
-    A->current_function    = 0xffffffff;
-    A->current_instruction = 0xffffffff;
+    A->current_instruction_pointer.function_index    = 0xffffffff;
+    A->current_instruction_pointer.instruction_index = 0xffffffff;
 
     /*  function has reached its end */
     return 0;
@@ -220,9 +223,9 @@ uint32_t perform_step(struct atto_vm_state *A)
     error(A, "Illegal instruction");
   }
 
-  A->current_instruction++;
+  A->current_instruction_pointer.instruction_index++;
   
-  if (A->current_instruction >= A->functions[A->current_function]->number_of_instructions) {
+  if (A->current_instruction_pointer.instruction_index >= A->functions[current_function_index]->number_of_instructions) {
     error(A, "Runaway function");
   }
 }
