@@ -96,6 +96,53 @@ void destroy_function(struct atto_vm_function *f)
   free(f);
 }
 
+void print_function_details(struct atto_vm_function *f)
+{
+  uint32_t i;
+
+  printf("  Arguments: %i\n", f->number_of_arguments);
+
+  printf("  Constants: %i\n", f->number_of_constants);
+  for (i = 0; i < f->number_of_constants; i++) {
+    printf("    [%02x] %08lx\n", i, f->constants[i]);
+  }
+
+  printf("  Instructions: %i\n", f->number_of_instructions);
+  for (i = 0; i < f->number_of_instructions; i++) {
+    printf("    [%08x] %08x\n", i, f->instructions[i]);
+  }
+
+  printf("\n");
+}
+
+void print_vm_state_details(struct atto_vm_state *A)
+{
+  uint32_t i;
+
+  printf("Functions: %i\n", A->number_of_functions);
+  for (i = 0; i < A->number_of_functions; i++) {
+    printf("Function %i:\n", i);
+    print_function_details(A->functions[i]);
+  }
+
+  printf("Call stack:\n");
+  if (A->call_stack_index == 0) {
+    printf("  (empty)\n");
+  }
+
+  for (i = 0; i < A->call_stack_index; i++) {
+    printf("  [%02x] %08x:%08x\n", i, A->call_stack[i].function_index, A->call_stack[i].instruction_index);
+  }
+  printf("\n");
+
+  printf("First eight registers:\n");
+  for (i = 0; i < 8; i++) {
+    printf("  [%02x] %08lx\n", i, A->registers[i]);
+  }
+
+  printf("\n");
+}
+
 uint32_t perform_step(struct atto_vm_state *A)
 {
   uint32_t current_function_index    = A->current_instruction_pointer.function_index;
@@ -206,17 +253,40 @@ uint32_t perform_step(struct atto_vm_state *A)
     break;
   }
 
-  /*  return -- f0 reg(u8) */
+  /*  call -- f0 index(u8) */
   case 0xf0: {
-    uint8_t reg = (current_instruction & 0x00ff0000) >> 16;
-    printf("Returned value: 0x%016x\n", A->registers[reg]);
+    uint8_t index = (current_instruction & 0x00ff0000) >> 16;
+    
+    if (A->call_stack_index + 1 >= ATTO_CALLSTACK_DEPTH) {
+      error(A, "Call stack overflow!");
+    }
 
-    /*  mark the machine as halted */
-    A->current_instruction_pointer.function_index    = 0xffffffff;
-    A->current_instruction_pointer.instruction_index = 0xffffffff;
+    /*  save the current instruction pointer on the call stack */
+    A->call_stack[A->call_stack_index].function_index    = current_function_index;
+    A->call_stack[A->call_stack_index].instruction_index = current_instruction_index;
+    A->call_stack_index++;
 
-    /*  function has reached its end */
-    return 0;
+    A->current_instruction_pointer.function_index    = A->functions[current_function_index]->constants[index];
+    A->current_instruction_pointer.instruction_index = 0;
+
+    break;
+  }
+
+  /*  return -- f8 */
+  case 0xf8: {
+    if (A->call_stack_index == 0) {
+      print_vm_state_details(A);
+      error(A, "Reached bottom of call stack. Terminating VM.");
+      return 0;
+    }
+
+    A->call_stack_index--;
+    A->current_instruction_pointer.function_index    = A->call_stack[A->call_stack_index].function_index;
+    A->current_instruction_pointer.instruction_index = A->call_stack[A->call_stack_index].instruction_index;
+
+    current_function_index    = A->current_instruction_pointer.function_index;
+    current_instruction_index = A->current_instruction_pointer.instruction_index;
+    break;
   }
 
   default:

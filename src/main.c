@@ -77,7 +77,7 @@ int main(int argc, char **argv)
   f1->instructions[3] = 0x20020300; /* test r2, r3 */
   f1->instructions[4] = 0x11020100; /* branch if equal to constant #2 */
   f1->instructions[5] = 0xffffffff; /* illegal (trap) instruction */
-  f1->instructions[6] = 0xf0020000; /* return r2 */
+  f1->instructions[6] = 0xf8020000; /* return r2 */
 
   A->functions[0] = f1;
 
