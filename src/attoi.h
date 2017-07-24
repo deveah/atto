@@ -6,6 +6,9 @@
 
 #include <stdint.h>
 
+#define ATTO_VM_MAJOR_VERSION 0
+#define ATTO_VM_MINOR_VERSION 1
+
 struct atto_vm_function {
   uint8_t number_of_arguments;
 

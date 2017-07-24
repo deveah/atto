@@ -1,7 +1,7 @@
 
 /*
- *  vm.c
- *  Part of Atto :: https://deveah.github.io/atto
+ *  attoi.c
+ *  the Atto Bytecode Interpreter :: https://deveah.github.io/atto
  */
 
 #include <assert.h>
@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "atto.h"
+#include "attoi.h"
 
 void error(struct atto_vm_state *A, char *reason)
 {
@@ -290,13 +290,136 @@ uint32_t perform_step(struct atto_vm_state *A)
   }
 
   default:
+    print_vm_state_details(A);
     error(A, "Illegal instruction");
   }
 
   A->current_instruction_pointer.instruction_index++;
   
   if (A->current_instruction_pointer.instruction_index >= A->functions[current_function_index]->number_of_instructions) {
+    print_vm_state_details(A);
     error(A, "Runaway function");
   }
+}
+
+void save_vm_state(struct atto_vm_state *A, char *filename)
+{
+  FILE *out;
+  uint16_t magic_number = 0xa770;
+  uint16_t version      = (uint16_t)((ATTO_VM_MAJOR_VERSION << 8) | ATTO_VM_MINOR_VERSION);
+  uint32_t entrypoint   = 0;
+  uint32_t i;
+
+  out = fopen(filename, "wb");
+  if (out == NULL) {
+    printf("fatal: cannot open file `%s' for output.\n", filename);
+    exit(1);
+  }
+
+  fwrite(&magic_number,             sizeof(uint16_t), 1, out);
+  fwrite(&version,                  sizeof(uint16_t), 1, out);
+  fwrite(&(A->number_of_functions), sizeof(uint32_t), 1, out);
+  fwrite(&entrypoint,               sizeof(uint32_t), 1, out);
+  
+  for (i = 0; i < A->number_of_functions; i++) {
+    struct atto_vm_function *f = A->functions[i];
+
+    fwrite(&(f->number_of_arguments),     sizeof(uint8_t),  1, out);
+    fwrite(&(f->number_of_constants),     sizeof(uint32_t), 1, out);
+    fwrite(&(f->number_of_instructions),  sizeof(uint32_t), 1, out);
+    
+    fwrite(f->constants,     sizeof(uint64_t), f->number_of_constants,    out);
+    fwrite(f->instructions,  sizeof(uint32_t), f->number_of_instructions, out);
+  }
+
+  fclose(out);
+}
+
+struct atto_vm_state *load_vm_state(char *filename)
+{
+  FILE *in;
+
+  uint8_t  buffer_u8;
+  uint16_t buffer_u16;
+  uint32_t buffer_u32;
+
+  uint8_t  number_of_arguments;
+  uint32_t number_of_functions, number_of_constants,
+           number_of_instructions, entrypoint;
+
+  uint32_t i;
+
+  struct atto_vm_state *A;
+  struct atto_vm_function *f;
+
+  in = fopen(filename, "rb");
+  if (in == NULL) {
+    printf("fatal: cannot open file `%s' for input.\n", filename);
+    exit(1);
+  }
+
+  fread(&buffer_u16, sizeof(uint16_t), 1, in);
+  if (buffer_u16 != 0xa770) {
+    printf("fatal: not an Atto VM image (magic bytes mismatch).\n");
+    exit(1);
+  }
+
+  fread(&buffer_u16, sizeof(uint16_t), 1, in);
+  if (buffer_u16 != (uint16_t)((ATTO_VM_MAJOR_VERSION << 8) | ATTO_VM_MINOR_VERSION)) {
+    printf("fatal: provided image is version 0x%04x, while this VM is version 0x%04x.\n",
+      buffer_u16, (uint16_t)((ATTO_VM_MAJOR_VERSION << 8) | ATTO_VM_MINOR_VERSION));
+    exit(1);
+  }
+
+  fread(&buffer_u32, sizeof(uint32_t), 1, in);
+  number_of_functions = buffer_u32;
+
+  A = allocate_state(number_of_functions);
+
+  fread(&buffer_u32, sizeof(uint32_t), 1, in);
+  entrypoint = buffer_u32;
+
+  A->current_instruction_pointer.function_index    = entrypoint;
+  A->current_instruction_pointer.instruction_index = 0;
+
+  for (i = 0; i < number_of_functions; i++) {
+    fread(&buffer_u8, sizeof(uint8_t), 1, in);
+    number_of_arguments = buffer_u8;
+
+    fread(&buffer_u32, sizeof(uint32_t), 1, in);
+    number_of_constants = buffer_u32;
+
+    fread(&buffer_u32, sizeof(uint32_t), 1, in);
+    number_of_instructions = buffer_u32;
+
+    f = allocate_function(number_of_arguments, number_of_constants, number_of_instructions);
+    A->functions[i] = f;
+
+    fread(f->constants,    sizeof(uint64_t), number_of_constants,    in);
+    fread(f->instructions, sizeof(uint32_t), number_of_instructions, in);
+  }
+
+  fclose(in);
+  return A;
+}
+
+int main(int argc, char **argv)
+{
+  struct atto_vm_state *A;
+
+  if (argc < 2) {
+    printf("usage: %s [input]\n", argv[0]);
+    return 1;
+  }
+
+  A = load_vm_state(argv[1]);
+
+  do {
+    perform_step(A);
+  } while (A->current_instruction_pointer.function_index != 0xffffffff);
+
+  print_vm_state_details(A);
+
+  return 0;
 }
 
