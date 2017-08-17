@@ -50,6 +50,7 @@ static int is_whitespace(char c)
 static struct atto_token *allocate_token(char *token, uint32_t kind)
 {
   struct atto_token *t = (struct atto_token *)malloc(sizeof(struct atto_token));
+
   assert(t != NULL);
 
   if (token == NULL) {
@@ -69,6 +70,7 @@ static struct atto_token *allocate_token(char *token, uint32_t kind)
 /*
  *  performs lexical analysis on a given string, and returns a list of tokens
  */
+/*  TODO: refactor this to be nice to the ANSI C standard */
 struct atto_token *atto_lex_string(const char *string)
 {
   struct atto_token *token_list = NULL;
@@ -141,8 +143,9 @@ struct atto_token *atto_lex_string(const char *string)
  */
 struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left)
 {
-  struct atto_ast_node *ast_root = NULL;
+  struct atto_ast_node *ast_root     = NULL;
   struct atto_ast_node *current_node = NULL;
+
   *left = root;
 
   while (*left) {
@@ -195,6 +198,287 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
 }
 
 /*
+ *  an expression can be one of the kind:
+ *  - a number literal
+ *  - a symbol literal
+ *  - a list literal
+ *  - a parameter reference
+ *  - an if expression
+ *  - an application
+ */
+struct atto_expression *parse_expression(struct atto_ast_node *e)
+{
+  struct atto_expression *expression = NULL;
+
+  if (e == NULL) {
+    printf("syntax error: expected expression\n");
+    return NULL;
+  }
+
+  expression = (struct atto_expression *)malloc(sizeof(struct atto_expression));
+
+  if (e->kind == ATTO_AST_NODE_NUMBER) {
+    expression->kind = ATTO_EXPRESSION_KIND_NUMBER_LITERAL;
+    expression->container.number_literal = e->container.number;
+
+    return expression;
+  }
+
+  if (e->kind == ATTO_AST_NODE_IDENTIFIER) {
+    expression->kind = ATTO_EXPRESSION_KIND_REFERENCE;
+    expression->container.reference_identifier = (char *)malloc(sizeof(char) * strlen(e->container.identifier));
+    strcpy(expression->container.reference_identifier, e->container.identifier);
+
+    return expression;
+  }
+
+  if (e->kind == ATTO_AST_NODE_LIST) {
+    struct atto_ast_node *head = e->container.list;
+
+    if (head->kind == ATTO_AST_NODE_IDENTIFIER) {
+      if (strcmp(head->container.identifier, "lambda") == 0) {
+        expression->kind = ATTO_EXPRESSION_KIND_LAMBDA;
+        expression->container.lambda_expression = parse_lambda_expression(head);
+
+        return expression;
+      }
+
+      if (strcmp(head->container.identifier, "if") == 0) {
+        expression->kind = ATTO_EXPRESSION_KIND_IF;
+        expression->container.if_expression = parse_if_expression(head);
+
+        return expression;
+      }
+
+      if (strcmp(head->container.identifier, "list") == 0) {
+        expression->kind = ATTO_EXPRESSION_KIND_LIST_LITERAL;
+        expression->container.list_literal_expression = parse_list_literal_expression(head);
+
+        return expression;
+      }
+
+      /*  if the identifier is not a keyword, then parse it as a parameter
+       *  reference */
+      expression->kind = ATTO_EXPRESSION_KIND_APPLICATION;
+      expression->container.application_expression = parse_application_expression(head);
+
+      return expression;
+    }
+
+    if (head->kind == ATTO_AST_NODE_LIST) {
+      struct atto_ast_node *child = head->container.list;
+
+      if ((child->kind != ATTO_AST_NODE_IDENTIFIER) ||
+          (strcmp(child->container.identifier, "lambda") != 0)) {
+        printf("syntax error: invalid expression\n");
+        return NULL;
+      }
+
+      struct atto_lambda_expression *child_lambda_expression = parse_lambda_expression(child);
+      if (child_lambda_expression == NULL) {
+        printf("syntax error: invalid expression\n");
+        return NULL;
+      }
+
+      expression->kind = ATTO_EXPRESSION_KIND_LAMBDA;
+      expression->container.lambda_expression = child_lambda_expression;
+
+      return expression;
+    }
+
+    if (head->kind == ATTO_AST_NODE_NUMBER) {
+      printf("syntax error: invalid expression; for quoted lists use the `list' form\n");
+      return NULL;
+    }
+  }
+
+  /*  this point should be unreachable */
+  return NULL;
+}
+
+struct atto_if_expression *parse_if_expression(struct atto_ast_node *head)
+{
+  struct atto_ast_node *condition    = head->next;
+  struct atto_ast_node *true_branch  = head->next->next;
+  struct atto_ast_node *false_branch = head->next->next->next;
+
+  struct atto_expression *condition_expression        = parse_expression(condition);
+  struct atto_expression *true_evaluation_expression  = parse_expression(true_branch);
+  struct atto_expression *false_evaluation_expression = parse_expression(false_branch);
+
+  /*  TODO NULL checks */
+
+  struct atto_if_expression *if_expression = (struct atto_if_expression *)malloc(sizeof(struct atto_if_expression));
+
+  if_expression->condition_expression        = condition_expression;
+  if_expression->true_evaluation_expression  = true_evaluation_expression;
+  if_expression->false_evaluation_expression = false_evaluation_expression;
+
+  return if_expression;
+}
+
+/*  TODO: document and clean up */
+struct atto_application_expression *parse_application_expression(struct atto_ast_node *head)
+{
+  struct atto_ast_node *current = head->next;
+
+  struct atto_application_expression *application_expression = (struct atto_application_expression *)malloc(sizeof(struct atto_application_expression));
+
+  uint32_t number_of_parameters    = 0;
+  uint32_t current_parameter_index = 0;
+
+  application_expression->identifier = (char *)malloc(sizeof(char) * (strlen(head->container.identifier) + 1));
+  strcpy(application_expression->identifier, head->container.identifier);
+
+  while (current) {
+    number_of_parameters++;
+    current = current->next;
+  }
+
+  application_expression->number_of_parameters = number_of_parameters;
+  application_expression->parameters = (struct atto_expression **)malloc(sizeof(struct atto_expression *) * number_of_parameters);
+
+  current = head->next;
+  while (current) {
+    application_expression->parameters[current_parameter_index] = parse_expression(current);
+
+    current_parameter_index++;
+    current = current->next;
+  }
+
+  return application_expression;
+}
+
+/*  XXX TODO */
+struct atto_list_literal_expression *parse_list_literal_expression(struct atto_ast_node *head)
+{
+  return NULL;
+}
+
+struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *head)
+{
+  struct atto_ast_node *parameter_list = head->next;
+  struct atto_ast_node *body           = head->next->next;
+  struct atto_ast_node *current        = NULL;
+
+  struct atto_lambda_expression *lambda = NULL;
+  
+  uint32_t number_of_parameters    = 0;
+  uint32_t current_parameter_index = 0;
+
+  struct atto_expression *expression = NULL;
+
+  /*  the first argument of the lambda form is a list of parameter
+   *  identifiers */
+  if (parameter_list->kind != ATTO_AST_NODE_LIST) {
+    printf("syntax error: expected parameter list in `lambda' form\n");
+    return NULL;
+  }
+
+  /*  the second argument of the lambda form is an expression which is
+   *  being defined */
+  if (body->kind != ATTO_AST_NODE_LIST) {
+    printf("syntax error: expected expression in `lambda' form\n");
+    return NULL;
+  }
+
+  /*  every element in the parameter list must be an identifier; furthermore,
+   *  a counter is used to predict the size of the parameter array in the
+   *  lambda structure */
+  current = parameter_list->container.list;
+  while (current) {
+    if (current->kind != ATTO_AST_NODE_IDENTIFIER) {
+      printf("syntax error: expected identifier in parameter list of `lambda' form\n");
+      return NULL;
+    }
+
+    number_of_parameters++;
+    current = current->next;
+  }
+
+  /*  the body of the lambda form must be a valid expression */
+  expression = parse_expression(body);
+  if (expression == NULL) {
+    printf("syntax error: unable to parse `lambda' form; giving up\n");
+    return NULL;
+  }
+
+  /*  now that we've assured the correctness of the lambda form, we begin
+   *  transforming the raw AST data into a lambda structure */
+  lambda = (struct atto_lambda_expression *)malloc(sizeof(struct atto_lambda_expression));
+  lambda->number_of_parameters = number_of_parameters;
+  lambda->parameter_names = (char **)malloc(sizeof(char *) * number_of_parameters);
+  lambda->body = expression;
+
+  /*  copy the identifiers into the list of parameter names of the lambda
+   *  structure */
+  current = parameter_list->container.list;
+  while (current) {
+    lambda->parameter_names[current_parameter_index] = (char *)malloc(sizeof(char) * (strlen(current->container.identifier + 1)));
+    strcpy(lambda->parameter_names[current_parameter_index], current->container.identifier);
+
+    current_parameter_index++;
+    current = current->next;
+  }
+
+  return lambda;
+}
+
+struct atto_define_form *parse_define_form(struct atto_ast_node *head)
+{
+  struct atto_ast_node *identifier = head->next;
+  struct atto_ast_node *body       = head->next->next;
+  
+  struct atto_define_form *define = NULL;
+
+  struct atto_expression *expression = NULL;
+
+  /*  the first argument of the `define' form must be an identifier */
+  if (identifier->kind != ATTO_AST_NODE_IDENTIFIER) {
+    printf("syntax error: expected identifier in `define' form\n");
+    return NULL;
+  }
+
+  /*  the body of the `define' form must be a valid expression */
+  expression = parse_expression(body);
+  if (expression == NULL) {
+    printf("syntax error: unable to parse `define' form; giving up\n");
+    return NULL;
+  }
+
+  define = (struct atto_define_form *)malloc(sizeof(struct atto_define_form));
+  define->identifier = (char *)malloc(sizeof(char) * (strlen(identifier->container.identifier) + 1));
+  strcpy(define->identifier, identifier->container.identifier);
+  define->body = expression;
+
+  return define;
+}
+
+struct atto_define_form *transform_ast(struct atto_ast_node *root)
+{
+  struct atto_ast_node *current = root;
+
+  while (current) {
+    if (current->kind == ATTO_AST_NODE_LIST) {
+      struct atto_ast_node *body = current->container.list;
+      char *identifier = body->container.identifier;
+
+      if (strcmp(identifier, "define") == 0) {
+        return parse_define_form(body);
+      } else {
+        printf("syntax error: only `define' forms are allowed on the top level\n");
+        return NULL;
+      }
+    } else {
+      printf("syntax error: only `define' forms are allowed on the top level\n");
+      return NULL;
+    }
+
+    current = current->next;
+  }
+}
+
+/*
  *  recursively deallocates a token list
  */
 void destroy_token_list(struct atto_token *head)
@@ -240,30 +524,31 @@ void destroy_ast(struct atto_ast_node *root)
   }
 }
 
+void puts_times(const char *what, size_t times)
+{
+  size_t i;
+
+  for (i = 0; i < times; i++) {
+    printf(what);
+  }
+}
+
 void pretty_print_ast(struct atto_ast_node *root, size_t level)
 {
   struct atto_ast_node *current = root;
-  size_t i;
 
   while (current) {
     if (current->kind == ATTO_AST_NODE_IDENTIFIER) {
-      for (i = 0; i < level; i++) {
-        printf("  ");
-      }
-
+      puts_times("  ", level);
       printf("ident: %s\n", current->container.identifier);
     }
 
     if (current->kind == ATTO_AST_NODE_LIST) {
-      for (i = 0; i < level; i++) {
-        printf("  ");
-      }
+      puts_times("  ", level);
       printf("list: (\n");
       pretty_print_ast(current->container.list, level + 1);
 
-      for (i = 0; i < level; i++) {
-        printf("  ");
-      }
+      puts_times("  ", level);
       printf(")\n");
     }
     
@@ -271,6 +556,130 @@ void pretty_print_ast(struct atto_ast_node *root, size_t level)
   }
 }
 
+void pretty_print_list_literal_expression(struct atto_list_literal_expression *e, int level)
+{
+  int i;
+
+  for (i = 0; i < e->number_of_elements; i++) {
+    puts_times("  ", level);
+    pretty_print_expression(&e->elements[i], level + 1);
+  }
+}
+
+void pretty_print_lambda_expression(struct atto_lambda_expression *e, int level)
+{
+  int i;
+
+  puts_times("  ", level);
+  printf("number of parameters: %i\n", e->number_of_parameters);
+
+  puts_times("  ", level);
+  printf("parameter names: ");
+
+  for (i = 0; i < e->number_of_parameters; i++) {
+    printf("%s", e->parameter_names[i]);
+
+    if (i < e->number_of_parameters - 1) {
+      printf(", ");
+    }
+  }
+
+  printf("\n");
+  puts_times("  ", level);
+  printf("body:\n");
+  pretty_print_expression(e->body, level + 1);
+}
+
+void pretty_print_if_expression(struct atto_if_expression *e, int level)
+{
+  puts_times("  ", level);
+  printf("condition expression:\n");
+  pretty_print_expression(e->condition_expression, level + 1);
+
+  puts_times("  ", level);
+  printf("true evaluation expression:\n");
+  pretty_print_expression(e->true_evaluation_expression, level + 1);
+
+  puts_times("  ", level);
+  printf("false evaluation expression:\n");
+  pretty_print_expression(e->false_evaluation_expression, level + 1);
+}
+
+void pretty_print_application_expression(struct atto_application_expression *e, int level)
+{
+  uint32_t i;
+
+  puts_times("  ", level);
+  printf("function identifier: %s\n", e->identifier);
+
+  puts_times("  ", level);
+  printf("number of parameters: %i\n", e->number_of_parameters);
+
+  puts_times("  ", level);
+  printf("parameters:\n");
+
+  for (i = 0; i < e->number_of_parameters; i++) {
+    pretty_print_expression(e->parameters[i], level + 1);
+  }
+}
+
+void pretty_print_expression(struct atto_expression *e, int level)
+{
+  int i;
+  for (i = 0; i < level; i++) {
+    printf("  ");
+  }
+
+  switch (e->kind) {
+  
+  case ATTO_EXPRESSION_KIND_NUMBER_LITERAL:
+    printf("number literal: %lf\n", e->container.number_literal);
+    return;
+
+  case ATTO_EXPRESSION_KIND_SYMBOL_LITERAL:
+    printf("symbol literal: %i\n", e->container.symbol_literal);
+    return;
+
+  case ATTO_EXPRESSION_KIND_LIST_LITERAL:
+    printf("list literal:\n");
+    pretty_print_list_literal_expression(e->container.list_literal_expression, level + 1);
+    return;
+
+  case ATTO_EXPRESSION_KIND_REFERENCE:
+    printf("variable reference: %s\n", e->container.reference_identifier);
+    return;
+
+  case ATTO_EXPRESSION_KIND_LAMBDA:
+    printf("lambda expression:\n");
+    pretty_print_lambda_expression(e->container.lambda_expression, level + 1);
+    return;
+
+  case ATTO_EXPRESSION_KIND_IF:
+    printf("if expression:\n");
+    pretty_print_if_expression(e->container.if_expression, level + 1);
+    return;
+
+  case ATTO_EXPRESSION_KIND_APPLICATION:
+    printf("application expression:\n");
+    pretty_print_application_expression(e->container.application_expression, level + 1);
+    return;
+
+  default:
+    printf("unknown expression kind: %i\n", e->kind);
+
+  }
+}
+
+void pretty_print_define_form(struct atto_define_form *d)
+{
+  printf("define form:\n");
+  printf("  identifier: %s\n", d->identifier);
+  printf("  body:\n");
+  pretty_print_expression(d->body, 2);
+  printf("\n");
+}
+
+/*  TODO: refactor this to be nice to the ANSI C standard */
 int main(int argc, char **argv)
 {
   FILE *in;
@@ -310,6 +719,10 @@ int main(int argc, char **argv)
   struct atto_ast_node *root = atto_parse_token_list(token_list, &left);
 
   pretty_print_ast(root, 0);
+
+  struct atto_define_form *d = transform_ast(root);
+
+  pretty_print_define_form(d);
 
   destroy_token_list(token_list);
 

@@ -1,17 +1,15 @@
 CC=clang
 CFLAGS=-Wall -Wextra -g3 -ansi
-SRCS=src/parser.c src/main.c src/vm.c
-OBJS=$(SRCS:.c=.o)
-TARGET=atto
 
-all:	$(TARGET)
-	@echo Successfully built atto
+all: attoc attoi
+	@echo "Successfully built the Atto tools (attoc, attoi)"
 
-$(TARGET):	$(OBJS)
-	$(CC) -o $(TARGET) $(OBJS)
+attoc:
+	$(CC) $(CFLAGS) src/attoc.c -o attoc
 
-.c.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+attoi:
+	$(CC) $(CFLAGS) src/attoi.c -o attoi
 
 clean:
-	rm $(OBJS) $(TARGET)
+	rm attoc attoi
+

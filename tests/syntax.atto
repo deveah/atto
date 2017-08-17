@@ -1,3 +1,6 @@
 
-(a (b (c d) e (f)) g h)
-  (i j)
+(define max (lambda (a b)
+  (if (isgt a b)
+      a
+      b)))
+
