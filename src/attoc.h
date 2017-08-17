@@ -37,7 +37,7 @@ struct atto_ast_node {
   struct atto_ast_node *next;
 };
 
-struct atto_define_form {
+struct atto_definition {
   char *identifier;
   struct atto_expression *body;
 };
@@ -86,6 +86,11 @@ struct atto_expression {
   } container;
 };
 
+struct atto_namespace {
+  uint32_t number_of_definitions;
+  struct atto_definition **definitions;
+};
+
 struct atto_token *atto_lex_string(const char *string);
 struct atto_ast_node *atto_parse_token_list(struct atto_token *root,
   struct atto_token **left);
@@ -107,3 +112,4 @@ void pretty_print_if_expression(struct atto_if_expression *e, int level);
 void pretty_print_application_expression(struct atto_application_expression *e, int level);
 void pretty_print_expression(struct atto_expression *e, int level);
 void pretty_print_define_form(struct atto_define_form *d);
+void pretty_print_namespace(struct atto_namespace *n);

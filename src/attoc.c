@@ -424,12 +424,12 @@ struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *hea
   return lambda;
 }
 
-struct atto_define_form *parse_define_form(struct atto_ast_node *head)
+struct atto_definition *parse_definition(struct atto_ast_node *head)
 {
   struct atto_ast_node *identifier = head->next;
   struct atto_ast_node *body       = head->next->next;
   
-  struct atto_define_form *define = NULL;
+  struct atto_definition *definition = NULL;
 
   struct atto_expression *expression = NULL;
 
@@ -446,36 +446,56 @@ struct atto_define_form *parse_define_form(struct atto_ast_node *head)
     return NULL;
   }
 
-  define = (struct atto_define_form *)malloc(sizeof(struct atto_define_form));
-  define->identifier = (char *)malloc(sizeof(char) * (strlen(identifier->container.identifier) + 1));
-  strcpy(define->identifier, identifier->container.identifier);
-  define->body = expression;
+  definition = (struct atto_definition *)malloc(sizeof(struct atto_definition));
+  definition->identifier = (char *)malloc(sizeof(char) * (strlen(identifier->container.identifier) + 1));
+  strcpy(definition->identifier, identifier->container.identifier);
+  definition->body = expression;
 
-  return define;
+  return definition;
 }
 
-struct atto_define_form *transform_ast(struct atto_ast_node *root)
+struct atto_namespace *parse_namespace(struct atto_ast_node *root)
 {
   struct atto_ast_node *current = root;
+  uint32_t number_of_definitions = 0;
+  uint32_t current_definition_index = 0;
+  struct atto_namespace *namespace = NULL;
 
   while (current) {
-    if (current->kind == ATTO_AST_NODE_LIST) {
-      struct atto_ast_node *body = current->container.list;
-      char *identifier = body->container.identifier;
-
-      if (strcmp(identifier, "define") == 0) {
-        return parse_define_form(body);
-      } else {
-        printf("syntax error: only `define' forms are allowed on the top level\n");
-        return NULL;
-      }
-    } else {
-      printf("syntax error: only `define' forms are allowed on the top level\n");
+    if (current->kind != ATTO_AST_NODE_LIST) {
+      printf("syntax error: only definitions are allowed in a namespace\n");
       return NULL;
     }
 
+    struct atto_ast_node *body = current->container.list;
+
+    if (body->kind != ATTO_AST_NODE_IDENTIFIER) {
+      printf("syntax error: only definitions are allowed in a namespace\n");
+      return NULL;
+    }
+
+    if (strcmp(body->container.identifier, "define") != 0) {
+      printf("syntax error: only definitions are allowed in a namespace\n");
+      return NULL;
+    }
+
+    number_of_definitions++;
     current = current->next;
   }
+
+  namespace = (struct atto_namespace *)malloc(sizeof(struct atto_namespace));
+
+  namespace->number_of_definitions = number_of_definitions;
+
+  current = root;
+  while (current) {
+    namespace->definitions[current_definition_index] = parse_definition(current->container.list);
+
+    current_definition_index++;
+    current = current->next;
+  }
+
+  return namespace;
 }
 
 /*
@@ -670,13 +690,24 @@ void pretty_print_expression(struct atto_expression *e, int level)
   }
 }
 
-void pretty_print_define_form(struct atto_define_form *d)
+void pretty_print_definition(struct atto_definition *d)
 {
-  printf("define form:\n");
+  printf("definition:\n");
   printf("  identifier: %s\n", d->identifier);
   printf("  body:\n");
   pretty_print_expression(d->body, 2);
   printf("\n");
+}
+
+void pretty_print_namespace(struct atto_namespace *n)
+{
+  size_t i;
+
+  printf("number of definitions: %i\n", n->number_of_definitions);
+
+  for (i = 0; i < n->number_of_definitions; i++) {
+    pretty_print_definition(n->definitions[i]);
+  }
 }
 
 /*  TODO: refactor this to be nice to the ANSI C standard */
@@ -720,9 +751,9 @@ int main(int argc, char **argv)
 
   pretty_print_ast(root, 0);
 
-  struct atto_define_form *d = transform_ast(root);
+  struct atto_namespace *namespace = parse_namespace(root);
 
-  pretty_print_define_form(d);
+  pretty_print_namespace(namespace);
 
   destroy_token_list(token_list);
 
