@@ -82,7 +82,7 @@ struct atto_token *atto_lex_string(const char *string)
   while (*string) {
 
     /*  whitespace is ignored */
-    while (is_whitespace(*string)) {
+    while ((*string != '\0') && is_whitespace(*string)) {
       string++;
     }
 
@@ -226,7 +226,7 @@ struct atto_expression *parse_expression(struct atto_ast_node *e)
 
   if (e->kind == ATTO_AST_NODE_IDENTIFIER) {
     expression->kind = ATTO_EXPRESSION_KIND_REFERENCE;
-    expression->container.reference_identifier = (char *)malloc(sizeof(char) * strlen(e->container.identifier));
+    expression->container.reference_identifier = (char *)malloc(sizeof(char) * (strlen(e->container.identifier) + 1));
     strcpy(expression->container.reference_identifier, e->container.identifier);
 
     return expression;
@@ -414,7 +414,7 @@ struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *hea
    *  structure */
   current = parameter_list->container.list;
   while (current) {
-    lambda->parameter_names[current_parameter_index] = (char *)malloc(sizeof(char) * (strlen(current->container.identifier + 1)));
+    lambda->parameter_names[current_parameter_index] = (char *)malloc(sizeof(char) * (strlen(current->container.identifier) + 1));
     strcpy(lambda->parameter_names[current_parameter_index], current->container.identifier);
 
     current_parameter_index++;
@@ -484,8 +484,8 @@ struct atto_namespace *parse_namespace(struct atto_ast_node *root)
   }
 
   namespace = (struct atto_namespace *)malloc(sizeof(struct atto_namespace));
-
   namespace->number_of_definitions = number_of_definitions;
+  namespace->definitions = (struct atto_definition **)malloc(sizeof(struct atto_definition *) * number_of_definitions);
 
   current = root;
   while (current) {
@@ -710,6 +710,79 @@ void pretty_print_namespace(struct atto_namespace *n)
   }
 }
 
+void destroy_expression(struct atto_expression *e)
+{
+  uint32_t i;
+
+  switch (e->kind) {
+  
+  case ATTO_EXPRESSION_KIND_LIST_LITERAL: {
+    struct atto_list_literal_expression *lle = e->container.list_literal_expression;
+    for (i = 0; i < lle->number_of_elements; i++) {
+      destroy_expression(lle->elements[i]);
+    }
+    free(lle);
+    break;
+  }
+
+  case ATTO_EXPRESSION_KIND_REFERENCE: {
+    char *reference_identifier = e->container.reference_identifier;
+    free(reference_identifier);
+    break;
+  }
+
+  case ATTO_EXPRESSION_KIND_LAMBDA: {
+    struct atto_lambda_expression *le = e->container.lambda_expression;
+    for (i = 0; i < le->number_of_parameters; i++) {
+      free(le->parameter_names[i]);
+    }
+    free(le->parameter_names);
+    destroy_expression(le->body);
+    free(le);
+    break;
+  }
+
+  case ATTO_EXPRESSION_KIND_IF: {
+    struct atto_if_expression *ie = e->container.if_expression;
+    destroy_expression(ie->condition_expression);
+    destroy_expression(ie->true_evaluation_expression);
+    destroy_expression(ie->false_evaluation_expression);
+    free(ie);
+    break;
+  }
+
+  case ATTO_EXPRESSION_KIND_APPLICATION: {
+    struct atto_application_expression *ae = e->container.application_expression;
+    free(ae->identifier);
+    for (i = 0; i < ae->number_of_parameters; i++) {
+      destroy_expression(ae->parameters[i]);
+    }
+    free(ae->parameters);
+    free(ae);
+    break;
+  }
+
+  default:
+    break;
+  }
+
+  free(e);
+}
+
+void destroy_namespace(struct atto_namespace *n)
+{
+  uint32_t i;
+
+  for (i = 0; i < n->number_of_definitions; i++) {
+    free(n->definitions[i]->identifier);
+    destroy_expression(n->definitions[i]->body);
+    free(n->definitions[i]);
+  }
+
+  free(n->definitions);
+  free(n);
+}
+
 /*  TODO: refactor this to be nice to the ANSI C standard */
 int main(int argc, char **argv)
 {
@@ -735,27 +808,36 @@ int main(int argc, char **argv)
   file_length = ftell(in);
   fseek(in, 0, SEEK_SET);
   
-  input_buffer = (char *)malloc(sizeof(char) * file_length);
+  input_buffer = (char *)malloc(sizeof(char) * (file_length + 1));
   assert(input_buffer != NULL);
 
   /*  dump the contents into the buffer, and close the handle */
   fread(input_buffer, sizeof(char), file_length, in);
   fclose(in);
 
+  input_buffer[file_length] = 0;
+
   /*  execute compilation */
 
   struct atto_token *token_list = atto_lex_string(input_buffer);
+
+  free(input_buffer);
   
   struct atto_token *left = NULL;
+
   struct atto_ast_node *root = atto_parse_token_list(token_list, &left);
+
+  destroy_token_list(token_list);
 
   pretty_print_ast(root, 0);
 
   struct atto_namespace *namespace = parse_namespace(root);
 
+  destroy_ast(root);
+
   pretty_print_namespace(namespace);
 
-  destroy_token_list(token_list);
+  destroy_namespace(namespace);
 
   return 0;
 }

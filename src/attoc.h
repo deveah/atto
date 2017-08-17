@@ -62,7 +62,7 @@ struct atto_application_expression {
 
 struct atto_list_literal_expression {
   uint32_t number_of_elements;
-  struct atto_expression *elements;
+  struct atto_expression **elements;
 };
 
 struct atto_expression {
@@ -113,3 +113,6 @@ void pretty_print_application_expression(struct atto_application_expression *e, 
 void pretty_print_expression(struct atto_expression *e, int level);
 void pretty_print_define_form(struct atto_define_form *d);
 void pretty_print_namespace(struct atto_namespace *n);
+
+void destroy_expression(struct atto_expression *e);
+void destroy_namespace(struct atto_namespace *n);
