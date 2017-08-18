@@ -102,7 +102,7 @@ struct atto_namespace {
 
 struct atto_token *atto_lex_string(const char *string);
 struct atto_ast_node *atto_parse_token_list(struct atto_token *root,
-  struct atto_token **left, struct hashtable *symbol_table);
+  struct atto_token **left, struct hashtable *symbol_table, uint64_t current_symbol_index);
 struct atto_expression *parse_expression(struct atto_ast_node *e);
 struct atto_if_expression *parse_if_expression(struct atto_ast_node *head);
 struct atto_application_expression *parse_application_expression(struct atto_ast_node *head);

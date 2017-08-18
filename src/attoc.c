@@ -186,18 +186,16 @@ struct atto_token *atto_lex_string(const char *string)
  *  parses a token list and produces an abstract syntax tree based on it;
  *  a pointer to the first unconsumed token will be put in `left'
  */
-struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left, struct hashtable *symbol_table)
+struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left, struct hashtable *symbol_table, uint64_t current_symbol_index)
 {
   struct atto_ast_node *ast_root     = NULL;
   struct atto_ast_node *current_node = NULL;
-
-  uint64_t current_symbol_index = 0;
 
   *left = root;
 
   while (*left) {
     if ((*left)->kind == ATTO_TOKEN_OPEN_PAREN) {
-      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left, symbol_table);
+      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left, symbol_table, current_symbol_index);
       struct atto_ast_node *list = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
       assert(list != NULL);
 
@@ -272,6 +270,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
       e = hashtable_get(symbol_table, (*left)->token);
 
       if (e == NULL) {
+        printf("saving symbol %s: %i\n", (*left)->token, current_symbol_index);
         hashtable_set(symbol_table, (*left)->token, current_symbol_index);
         symbol = current_symbol_index;
         current_symbol_index++;
@@ -308,8 +307,6 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
  *                    <variable_reference> | <application_expression> |
  *                    <lambda_expression> | <if_expression> |
  *                    <list_literal_expression>
- *
- *  <list_literal_expression> ::= list {<expression>}*
  */
 struct atto_expression *parse_expression(struct atto_ast_node *e)
 {
@@ -528,10 +525,42 @@ struct atto_application_expression *parse_application_expression(struct atto_ast
   return application_expression;
 }
 
-/*  XXX TODO */
+/*
+ *  parse a list literal expression from its AST root node
+ *
+ *  <list_literal_expression> ::= list {<expression>}*
+ */
 struct atto_list_literal_expression *parse_list_literal_expression(struct atto_ast_node *head)
 {
-  return NULL;
+  struct atto_ast_node *current = NULL;
+
+  struct atto_list_literal_expression *list_literal_expression = NULL;
+
+  uint32_t number_of_elements    = 0;
+  uint32_t current_element_index = 0;
+  
+  list_literal_expression = (struct atto_list_literal_expression *)malloc(sizeof(struct atto_list_literal_expression));
+  assert(list_literal_expression != NULL);
+  
+  current = head;
+  while (current) {
+    number_of_elements++;
+    current = current->next;
+  }
+
+  list_literal_expression->number_of_elements = number_of_elements;
+  list_literal_expression->elements = (struct atto_expression **)malloc(sizeof(struct atto_expression *) * number_of_elements);
+  assert(list_literal_expression != NULL);
+
+  current = head;
+  while (current) {
+    list_literal_expression->elements[current_element_index] = parse_expression(current);
+    
+    current_element_index++;
+    current = current->next;
+  }
+
+  return list_literal_expression;
 }
 
 /*
@@ -934,6 +963,7 @@ void destroy_expression(struct atto_expression *e)
     for (i = 0; i < lle->number_of_elements; i++) {
       destroy_expression(lle->elements[i]);
     }
+    free(lle->elements);
     free(lle);
     break;
   }
@@ -1042,7 +1072,7 @@ int main(int argc, char **argv)
 
   struct hashtable *symbol_table = allocate_hashtable(ATTO_SYMBOL_TABLE_BUCKET_COUNT);
 
-  struct atto_ast_node *root = atto_parse_token_list(token_list, &left, symbol_table);
+  struct atto_ast_node *root = atto_parse_token_list(token_list, &left, symbol_table, 2);
 
   destroy_token_list(token_list);
 
