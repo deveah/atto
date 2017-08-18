@@ -1,7 +1,8 @@
 
 /*
  *  attoc.c
- *  the Atto compiler :: https://deveah.github.io/atto
+ *  the Atto compiler
+ *  https://github.com/deveah/atto
  */
 
 #include <stdlib.h>
@@ -10,6 +11,7 @@
 #include <string.h>
 
 #include "attoc.h"
+#include "hashtable.h"
 
 /*
  *  returns whether a character is a digit
@@ -184,16 +186,18 @@ struct atto_token *atto_lex_string(const char *string)
  *  parses a token list and produces an abstract syntax tree based on it;
  *  a pointer to the first unconsumed token will be put in `left'
  */
-struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left)
+struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left, struct hashtable *symbol_table)
 {
   struct atto_ast_node *ast_root     = NULL;
   struct atto_ast_node *current_node = NULL;
+
+  uint64_t current_symbol_index = 0;
 
   *left = root;
 
   while (*left) {
     if ((*left)->kind == ATTO_TOKEN_OPEN_PAREN) {
-      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left);
+      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left, symbol_table);
       struct atto_ast_node *list = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
       assert(list != NULL);
 
@@ -261,7 +265,34 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
     }
 
     if ((*left)->kind == ATTO_TOKEN_SYMBOL) {
-      /*  XXX TODO */
+      struct atto_ast_node *temp = NULL;
+      struct hashtable_entry *e;
+      uint64_t symbol = 0;
+
+      e = hashtable_get(symbol_table, (*left)->token);
+
+      if (e == NULL) {
+        hashtable_set(symbol_table, (*left)->token, current_symbol_index);
+        symbol = current_symbol_index;
+        current_symbol_index++;
+      } else {
+        symbol = e->value;
+      }
+
+      temp = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
+      assert(temp != NULL);
+
+      temp->kind = ATTO_AST_NODE_SYMBOL;
+      temp->container.symbol = symbol;
+      temp->next = NULL;
+      
+      if (ast_root == NULL) {
+        ast_root     = temp;
+        current_node = temp;
+      } else {
+        current_node->next = temp;
+        current_node       = temp;
+      }
     }
 
     *left = (*left)->next;
@@ -295,6 +326,14 @@ struct atto_expression *parse_expression(struct atto_ast_node *e)
   if (e->kind == ATTO_AST_NODE_NUMBER) {
     expression->kind = ATTO_EXPRESSION_KIND_NUMBER_LITERAL;
     expression->container.number_literal = e->container.number;
+
+    return expression;
+  }
+
+  /*  an expression can be a symbol literal */
+  if (e->kind == ATTO_AST_NODE_SYMBOL) {
+    expression->kind = ATTO_EXPRESSION_KIND_SYMBOL_LITERAL;
+    expression->container.symbol_literal = e->container.symbol;
 
     return expression;
   }
@@ -655,8 +694,11 @@ struct atto_namespace *parse_namespace(struct atto_ast_node *root)
   }
 
   namespace = (struct atto_namespace *)malloc(sizeof(struct atto_namespace));
+  assert(namespace != NULL);
+
   namespace->number_of_definitions = number_of_definitions;
   namespace->definitions = (struct atto_definition **)malloc(sizeof(struct atto_definition *) * number_of_definitions);
+  assert(namespace->definitions != NULL);
 
   current = root;
   while (current) {
@@ -950,6 +992,8 @@ void destroy_namespace(struct atto_namespace *n)
     free(n->definitions[i]);
   }
 
+  destroy_hashtable(n->symbol_table);
+
   free(n->definitions);
   free(n);
 }
@@ -996,13 +1040,16 @@ int main(int argc, char **argv)
   
   struct atto_token *left = NULL;
 
-  struct atto_ast_node *root = atto_parse_token_list(token_list, &left);
+  struct hashtable *symbol_table = allocate_hashtable(ATTO_SYMBOL_TABLE_BUCKET_COUNT);
+
+  struct atto_ast_node *root = atto_parse_token_list(token_list, &left, symbol_table);
 
   destroy_token_list(token_list);
 
   pretty_print_ast(root, 0);
 
   struct atto_namespace *namespace = parse_namespace(root);
+  namespace->symbol_table = symbol_table;
 
   destroy_ast(root);
 

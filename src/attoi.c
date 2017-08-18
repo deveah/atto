@@ -1,7 +1,8 @@
 
 /*
  *  attoi.c
- *  the Atto Bytecode Interpreter :: https://deveah.github.io/atto
+ *  the Atto Bytecode Interpreter
+ *  https://github.com/deveah/atto
  */
 
 #include <assert.h>

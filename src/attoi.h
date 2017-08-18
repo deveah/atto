@@ -1,7 +1,8 @@
 
 /*
  *  attoi.h
- *  the Atto Bytecode Interpteter :: https://deveah.github.io/atto
+ *  the Atto Bytecode Interpteter
+ *  https://github.com/deveah/atto
  */
 
 #include <stdint.h>
