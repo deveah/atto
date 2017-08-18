@@ -70,7 +70,6 @@ static struct atto_token *allocate_token(char *token, uint32_t kind)
 /*
  *  performs lexical analysis on a given string, and returns a list of tokens
  */
-/*  TODO: refactor this to be nice to the ANSI C standard */
 struct atto_token *atto_lex_string(const char *string)
 {
   struct atto_token *token_list = NULL;
