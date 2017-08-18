@@ -542,7 +542,7 @@ struct atto_list_literal_expression *parse_list_literal_expression(struct atto_a
   list_literal_expression = (struct atto_list_literal_expression *)malloc(sizeof(struct atto_list_literal_expression));
   assert(list_literal_expression != NULL);
   
-  current = head;
+  current = head->next;
   while (current) {
     number_of_elements++;
     current = current->next;
@@ -552,7 +552,7 @@ struct atto_list_literal_expression *parse_list_literal_expression(struct atto_a
   list_literal_expression->elements = (struct atto_expression **)malloc(sizeof(struct atto_expression *) * number_of_elements);
   assert(list_literal_expression != NULL);
 
-  current = head;
+  current = head->next;
   while (current) {
     list_literal_expression->elements[current_element_index] = parse_expression(current);
     
@@ -823,8 +823,7 @@ void pretty_print_list_literal_expression(struct atto_list_literal_expression *e
   uint32_t i;
 
   for (i = 0; i < e->number_of_elements; i++) {
-    puts_times("  ", level);
-    pretty_print_expression(e->elements[i], level + 1);
+    pretty_print_expression(e->elements[i], level);
   }
 }
 
