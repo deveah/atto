@@ -17,6 +17,7 @@ struct atto_token {
   #define ATTO_TOKEN_CLOSED_PAREN 1
   #define ATTO_TOKEN_IDENTIFIER   2
   #define ATTO_TOKEN_NUMBER       3
+  #define ATTO_TOKEN_SYMBOL       4
   uint32_t kind;
 
   struct atto_token *next;
@@ -25,12 +26,14 @@ struct atto_token {
 struct atto_ast_node {
   #define ATTO_AST_NODE_IDENTIFIER  0
   #define ATTO_AST_NODE_NUMBER      1
-  #define ATTO_AST_NODE_LIST        2
+  #define ATTO_AST_NODE_SYMBOL      2
+  #define ATTO_AST_NODE_LIST        3
   uint32_t kind;
 
   union {
     char *identifier;
     double number;
+    uint64_t symbol;
     struct atto_ast_node *list;
   } container;
 

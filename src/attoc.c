@@ -85,6 +85,48 @@ struct atto_token *atto_lex_string(const char *string)
     while ((*string != '\0') && is_whitespace(*string)) {
       string++;
     }
+    
+    /*  number literals start with either a digit, or a minus sign */
+    if (is_digit(*string) || (*string == '-')) {
+      struct atto_token *number_literal = NULL;
+
+      while (!is_whitespace(*string) && (*string != ')')) {
+        temp_token[temp_token_index++] = *string++;
+      }
+      temp_token[temp_token_index] = 0;
+      temp_token_index = 0;
+
+      number_literal = allocate_token(temp_token, ATTO_TOKEN_NUMBER);
+      if (token_list == NULL) {
+        token_list = number_literal;
+        last_token = number_literal;
+      } else {
+        last_token->next = number_literal;
+        last_token       = number_literal;
+      }
+    }
+
+    /*  symbol literals start with a colon sign, and may contain any
+     *  combination of letters, digits, and dashes */
+    if (*string == ':') {
+      struct atto_token *symbol_literal = NULL;
+
+      string++;
+      while (is_alnum(*string) || (*string == '-')) {
+        temp_token[temp_token_index++] = *string++;
+      }
+      temp_token[temp_token_index] = 0;
+      temp_token_index = 0;
+      
+      symbol_literal = allocate_token(temp_token, ATTO_TOKEN_SYMBOL);
+      if (token_list == NULL) {
+        token_list = symbol_literal;
+        last_token = symbol_literal;
+      } else {
+        last_token->next = symbol_literal;
+        last_token       = symbol_literal;
+      }
+    }
 
     /*  identifiers start with a letter, and may contain any combination of
      *  letters, digits, and dashes */
@@ -155,6 +197,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
       struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left);
       struct atto_ast_node *list = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
       assert(list != NULL);
+
       list->kind = ATTO_AST_NODE_LIST;
       list->container.list = temp;
       list->next = NULL;
@@ -191,6 +234,35 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
         current_node->next = temp;
         current_node       = temp;
       }
+    }
+
+    if ((*left)->kind == ATTO_TOKEN_NUMBER) {
+      struct atto_ast_node *temp = NULL;
+      char *endptr = NULL;
+
+      temp = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
+      assert(temp != NULL);
+
+      temp->kind = ATTO_AST_NODE_NUMBER;
+      temp->container.number = strtod((*left)->token, &endptr);
+      temp->next = NULL;
+
+      if ((*left)->token == endptr) {
+        printf("syntax error: unable to parse number literal\n");
+        return NULL;
+      }
+
+      if (ast_root == NULL) {
+        ast_root     = temp;
+        current_node = temp;
+      } else {
+        current_node->next = temp;
+        current_node       = temp;
+      }
+    }
+
+    if ((*left)->kind == ATTO_TOKEN_SYMBOL) {
+      /*  XXX TODO */
     }
 
     *left = (*left)->next;
