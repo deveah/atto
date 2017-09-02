@@ -1,15 +1,15 @@
 CC=clang
+SRCS=src/atto.c src/parser.c src/lexer.c
 CFLAGS=-Wall -Wextra -g3 -ansi
+LIBS=-lreadline
+TARGET=atto
 
-all: attoc attoi
-	@echo "Successfully built the Atto tools (attoc, attoi)"
+all: $(TARGET)
+	@echo "Built Atto."
 
-attoc:
-	$(CC) $(CFLAGS) src/attoc.c -o attoc
-
-attoi:
-	$(CC) $(CFLAGS) src/attoi.c -o attoi
+$(TARGET):
+	$(CC) $(CFLAGS) $(LIBS) $(SRCS) -o $(TARGET)
 
 clean:
-	rm attoc attoi
+	rm $(TARGET)
 

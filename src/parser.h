@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include "lexer.h"
-#include "hashtable.h"
 
 #pragma once
 
@@ -77,23 +76,13 @@ struct atto_expression {
   } container;
 };
 
-struct atto_namespace {
-  uint32_t number_of_definitions;
-  struct atto_definition **definitions;
-
-  #define ATTO_SYMBOL_TABLE_BUCKET_COUNT 256
-  struct hashtable *symbol_table;
-};
-
-struct atto_ast_node *atto_parse_token_list(struct atto_token *root,
-  struct atto_token **left, struct hashtable *symbol_table, uint64_t current_symbol_index);
+struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left);
 struct atto_expression *parse_expression(struct atto_ast_node *e);
 struct atto_if_expression *parse_if_expression(struct atto_ast_node *head);
 struct atto_application_expression *parse_application_expression(struct atto_ast_node *head);
 struct atto_list_literal_expression *parse_list_literal_expression(struct atto_ast_node *head);
 struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *head);
 struct atto_define_form *parse_define_form(struct atto_ast_node *head);
-struct atto_namespace *parse_namespace(struct atto_ast_node *root);
 
 void destroy_ast(struct atto_ast_node *root);
 
@@ -105,8 +94,6 @@ void pretty_print_if_expression(struct atto_if_expression *e, int level);
 void pretty_print_application_expression(struct atto_application_expression *e, int level);
 void pretty_print_expression(struct atto_expression *e, int level);
 void pretty_print_define_form(struct atto_define_form *d);
-void pretty_print_namespace(struct atto_namespace *n);
 
 void destroy_expression(struct atto_expression *e);
-void destroy_namespace(struct atto_namespace *n);
 

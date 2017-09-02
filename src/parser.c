@@ -10,13 +10,12 @@
 #include <string.h>
 
 #include "parser.h"
-#include "hashtable.h"
 
 /*
  *  parses a token list and produces an abstract syntax tree based on it;
  *  a pointer to the first unconsumed token will be put in `left'
  */
-struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left, struct hashtable *symbol_table, uint64_t current_symbol_index)
+struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left)
 {
   struct atto_ast_node *ast_root     = NULL;
   struct atto_ast_node *current_node = NULL;
@@ -25,7 +24,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
 
   while (*left) {
     if ((*left)->kind == ATTO_TOKEN_OPEN_PAREN) {
-      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left, symbol_table, current_symbol_index);
+      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left);
       struct atto_ast_node *list = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
       assert(list != NULL);
 
@@ -93,6 +92,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
     }
 
     if ((*left)->kind == ATTO_TOKEN_SYMBOL) {
+      /*
       struct atto_ast_node *temp = NULL;
       struct hashtable_entry *e;
       uint64_t symbol = 0;
@@ -122,6 +122,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
         current_node->next = temp;
         current_node       = temp;
       }
+      */
     }
 
     *left = (*left)->next;
@@ -515,62 +516,6 @@ struct atto_definition *parse_definition(struct atto_ast_node *head)
 }
 
 /*
- *  parses a namespace (a list of definitions) from its AST root node;
- *  please note that the given root node can be part of a list of
- *  nodes
- */
-struct atto_namespace *parse_namespace(struct atto_ast_node *root)
-{
-  struct atto_ast_node *current = root;
-
-  uint32_t number_of_definitions    = 0;
-  uint32_t current_definition_index = 0;
-
-  struct atto_namespace *namespace = NULL;
-
-  while (current) {
-    struct atto_ast_node *body = NULL;
-
-    if (current->kind != ATTO_AST_NODE_LIST) {
-      printf("syntax error: only definitions are allowed in a namespace\n");
-      return NULL;
-    }
-
-    body = current->container.list;
-
-    if (body->kind != ATTO_AST_NODE_IDENTIFIER) {
-      printf("syntax error: only definitions are allowed in a namespace\n");
-      return NULL;
-    }
-
-    if (strcmp(body->container.identifier, "define") != 0) {
-      printf("syntax error: only definitions are allowed in a namespace\n");
-      return NULL;
-    }
-
-    number_of_definitions++;
-    current = current->next;
-  }
-
-  namespace = (struct atto_namespace *)malloc(sizeof(struct atto_namespace));
-  assert(namespace != NULL);
-
-  namespace->number_of_definitions = number_of_definitions;
-  namespace->definitions = (struct atto_definition **)malloc(sizeof(struct atto_definition *) * number_of_definitions);
-  assert(namespace->definitions != NULL);
-
-  current = root;
-  while (current) {
-    namespace->definitions[current_definition_index] = parse_definition(current->container.list);
-
-    current_definition_index++;
-    current = current->next;
-  }
-
-  return namespace;
-}
-
-/*
  *  recursively deallocates an AST
  */
 void destroy_ast(struct atto_ast_node *root)
@@ -750,17 +695,6 @@ void pretty_print_definition(struct atto_definition *d)
   printf("\n");
 }
 
-void pretty_print_namespace(struct atto_namespace *n)
-{
-  size_t i;
-
-  printf("number of definitions: %i\n", n->number_of_definitions);
-
-  for (i = 0; i < n->number_of_definitions; i++) {
-    pretty_print_definition(n->definitions[i]);
-  }
-}
-
 void destroy_expression(struct atto_expression *e)
 {
   uint32_t i;
@@ -819,21 +753,5 @@ void destroy_expression(struct atto_expression *e)
   }
 
   free(e);
-}
-
-void destroy_namespace(struct atto_namespace *n)
-{
-  uint32_t i;
-
-  for (i = 0; i < n->number_of_definitions; i++) {
-    free(n->definitions[i]->identifier);
-    destroy_expression(n->definitions[i]->body);
-    free(n->definitions[i]);
-  }
-
-  destroy_hashtable(n->symbol_table);
-
-  free(n->definitions);
-  free(n);
 }
 
