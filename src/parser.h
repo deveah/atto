@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include "state.h"
 #include "lexer.h"
 
 #pragma once
@@ -76,7 +77,7 @@ struct atto_expression {
   } container;
 };
 
-struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left);
+struct atto_ast_node *atto_parse_token_list(struct atto_state *a, struct atto_token *root, struct atto_token **left);
 struct atto_expression *parse_expression(struct atto_ast_node *e);
 struct atto_if_expression *parse_if_expression(struct atto_ast_node *head);
 struct atto_application_expression *parse_application_expression(struct atto_ast_node *head);

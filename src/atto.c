@@ -10,17 +10,18 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#include "state.h"
 #include "parser.h"
 #include "lexer.h"
 
 #define COLOR_GREEN "\e[32m"
 #define COLOR_RESET "\e[0m"
 
-void evaluate_string(char *str)
+void evaluate_string(struct atto_state *a, char *str)
 {
   struct atto_token *token_list  = atto_lex_string(str);
   struct atto_token *left = NULL;
-  struct atto_ast_node *root = atto_parse_token_list(token_list, &left);
+  struct atto_ast_node *root = atto_parse_token_list(a, token_list, &left);
   struct atto_expression *e = parse_expression(root);
 
   pretty_print_expression(e, 0);
@@ -41,6 +42,8 @@ int main(int argc, char **argv)
   
   rl_variable_bind("blink-matching-paren", "on");
 
+  struct atto_state *a = atto_allocate_state();
+
   while (1) {
     line_buffer = readline(COLOR_GREEN "atto" COLOR_RESET "> ");
     add_history(line_buffer);
@@ -54,10 +57,12 @@ int main(int argc, char **argv)
       break;
     }
 
-    evaluate_string(line_buffer);
+    evaluate_string(a, line_buffer);
 
     free(line_buffer);
   }
+
+  atto_destroy_state(a);
 
   return 0;
 }

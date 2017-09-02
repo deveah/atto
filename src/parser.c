@@ -9,13 +9,14 @@
 #include <assert.h>
 #include <string.h>
 
+#include "state.h"
 #include "parser.h"
 
 /*
  *  parses a token list and produces an abstract syntax tree based on it;
  *  a pointer to the first unconsumed token will be put in `left'
  */
-struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto_token **left)
+struct atto_ast_node *atto_parse_token_list(struct atto_state *a, struct atto_token *root, struct atto_token **left)
 {
   struct atto_ast_node *ast_root     = NULL;
   struct atto_ast_node *current_node = NULL;
@@ -24,7 +25,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
 
   while (*left) {
     if ((*left)->kind == ATTO_TOKEN_OPEN_PAREN) {
-      struct atto_ast_node *temp = atto_parse_token_list((*left)->next, left);
+      struct atto_ast_node *temp = atto_parse_token_list(a, (*left)->next, left);
       struct atto_ast_node *list = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
       assert(list != NULL);
 
@@ -92,20 +93,18 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
     }
 
     if ((*left)->kind == ATTO_TOKEN_SYMBOL) {
-      /*
       struct atto_ast_node *temp = NULL;
-      struct hashtable_entry *e;
-      uint64_t symbol = 0;
+      uint64_t symbol = a->number_of_symbols;
 
-      e = hashtable_get(symbol_table, (*left)->token);
+      uint32_t i;
+      for (i = 0; i < a->number_of_symbols; i++) {
+        if (strcmp((*left)->token, a->symbol_names[i]) == 0) {
+          symbol = i;
+        }
+      }
 
-      if (e == NULL) {
-        printf("saving symbol %s: %i\n", (*left)->token, current_symbol_index);
-        hashtable_set(symbol_table, (*left)->token, current_symbol_index);
-        symbol = current_symbol_index;
-        current_symbol_index++;
-      } else {
-        symbol = e->value;
+      if (symbol == a->number_of_symbols) {
+        atto_save_symbol(a, (*left)->token);
       }
 
       temp = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));
@@ -122,7 +121,6 @@ struct atto_ast_node *atto_parse_token_list(struct atto_token *root, struct atto
         current_node->next = temp;
         current_node       = temp;
       }
-      */
     }
 
     *left = (*left)->next;
