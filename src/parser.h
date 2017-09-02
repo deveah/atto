@@ -83,7 +83,7 @@ struct atto_if_expression *parse_if_expression(struct atto_ast_node *head);
 struct atto_application_expression *parse_application_expression(struct atto_ast_node *head);
 struct atto_list_literal_expression *parse_list_literal_expression(struct atto_ast_node *head);
 struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *head);
-struct atto_define_form *parse_define_form(struct atto_ast_node *head);
+struct atto_define_form *parse_defition(struct atto_ast_node *head);
 
 void destroy_ast(struct atto_ast_node *root);
 

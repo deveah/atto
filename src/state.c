@@ -20,7 +20,26 @@ struct atto_state *atto_allocate_state(void)
   a->number_of_allocated_symbol_slots = ATTO_MINIMUM_ALLOCATED_SYMBOL_SLOTS;
   a->symbol_names = (char **)calloc(a->number_of_allocated_symbol_slots, sizeof(char *));
 
+  a->number_of_global_objects = 0;
+  a->number_of_allocated_global_table_slots = ATTO_MINIMUM_ALLOCATED_GLOBAL_TABLE_SLOTS;
+  a->global_table = (struct atto_global_table_slot **)calloc(a->number_of_allocated_global_table_slots, sizeof(struct atto_global_table_slot *));
+
   return a;
+}
+
+void atto_destroy_object(struct atto_object *o)
+{
+  if (o->kind == ATTO_OBJECT_KIND_LIST) {
+    atto_destroy_object(o->container.list.car);
+    atto_destroy_object(o->container.list.cdr);
+  }
+
+  if (o->kind == ATTO_OBJECT_KIND_LAMBDA) {
+    free(o->container.lambda->instruction_stream);
+    free(o->container.lambda);
+  }
+
+  free(o);
 }
 
 void atto_destroy_state(struct atto_state *a)
@@ -31,7 +50,14 @@ void atto_destroy_state(struct atto_state *a)
     free(a->symbol_names[i]);
   }
 
+  for (i = 0; i < a->number_of_global_objects; i++) {
+    atto_destroy_object(a->global_table[i]->body);
+    free(a->global_table[i]);
+  }
+
   free(a->symbol_names);
+  free(a->global_table);
+
   free(a);
 }
 
