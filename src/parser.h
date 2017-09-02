@@ -1,30 +1,15 @@
 
 /*
- *  attoc.h
- *  the Atto Compiler
- *  https://github.com/deveah/atto
+ *  parser.h
+ *  part of Atto :: https://github.com/deveah/atto
  */
 
 #include <stdint.h>
 
+#include "lexer.h"
 #include "hashtable.h"
 
 #pragma once
-
-#define ATTO_MAX_TOKEN_LENGTH 256
-
-struct atto_token {
-  char *token;
-
-  #define ATTO_TOKEN_OPEN_PAREN   0
-  #define ATTO_TOKEN_CLOSED_PAREN 1
-  #define ATTO_TOKEN_IDENTIFIER   2
-  #define ATTO_TOKEN_NUMBER       3
-  #define ATTO_TOKEN_SYMBOL       4
-  uint32_t kind;
-
-  struct atto_token *next;
-};
 
 struct atto_ast_node {
   #define ATTO_AST_NODE_IDENTIFIER  0
@@ -100,7 +85,6 @@ struct atto_namespace {
   struct hashtable *symbol_table;
 };
 
-struct atto_token *atto_lex_string(const char *string);
 struct atto_ast_node *atto_parse_token_list(struct atto_token *root,
   struct atto_token **left, struct hashtable *symbol_table, uint64_t current_symbol_index);
 struct atto_expression *parse_expression(struct atto_ast_node *e);
@@ -109,8 +93,8 @@ struct atto_application_expression *parse_application_expression(struct atto_ast
 struct atto_list_literal_expression *parse_list_literal_expression(struct atto_ast_node *head);
 struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *head);
 struct atto_define_form *parse_define_form(struct atto_ast_node *head);
-struct atto_define_form *transform_ast(struct atto_ast_node *root);
-void destroy_token_list(struct atto_token *head);
+struct atto_namespace *parse_namespace(struct atto_ast_node *root);
+
 void destroy_ast(struct atto_ast_node *root);
 
 void puts_times(const char *what, size_t times);
@@ -125,3 +109,4 @@ void pretty_print_namespace(struct atto_namespace *n);
 
 void destroy_expression(struct atto_expression *e);
 void destroy_namespace(struct atto_namespace *n);
+
