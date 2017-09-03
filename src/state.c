@@ -61,7 +61,7 @@ void atto_destroy_state(struct atto_state *a)
   free(a);
 }
 
-void atto_save_symbol(struct atto_state *a, char *name)
+uint64_t atto_save_symbol(struct atto_state *a, char *name)
 {
   char *temp = (char *)malloc(sizeof(char) * (strlen(name) + 1));
   assert(temp != NULL);
@@ -74,5 +74,7 @@ void atto_save_symbol(struct atto_state *a, char *name)
 
   a->symbol_names[a->number_of_symbols] = temp;
   a->number_of_symbols++;
+
+  return (a->number_of_symbols - 1);
 }
 

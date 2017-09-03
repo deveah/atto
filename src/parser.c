@@ -104,7 +104,7 @@ struct atto_ast_node *atto_parse_token_list(struct atto_state *a, struct atto_to
       }
 
       if (symbol == a->number_of_symbols) {
-        atto_save_symbol(a, (*left)->token);
+        symbol = atto_save_symbol(a, (*left)->token);
       }
 
       temp = (struct atto_ast_node *)malloc(sizeof(struct atto_ast_node));

@@ -55,5 +55,5 @@ struct atto_state *atto_allocate_state(void);
 void atto_destroy_object(struct atto_object *o);
 void atto_destroy_state(struct atto_state *a);
 
-void atto_save_symbol(struct atto_state *a, char *name);
+uint64_t atto_save_symbol(struct atto_state *a, char *name);
 
