@@ -4,6 +4,7 @@
  *  part of Atto :: https://github.com/deveah/atto
  */
 
+#include <stdlib.h>
 #include <stdint.h>
 
 #include "state.h"

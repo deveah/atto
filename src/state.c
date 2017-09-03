@@ -20,9 +20,10 @@ struct atto_state *atto_allocate_state(void)
   a->number_of_allocated_symbol_slots = ATTO_MINIMUM_ALLOCATED_SYMBOL_SLOTS;
   a->symbol_names = (char **)calloc(a->number_of_allocated_symbol_slots, sizeof(char *));
 
-  a->number_of_global_objects = 0;
-  a->number_of_allocated_global_table_slots = ATTO_MINIMUM_ALLOCATED_GLOBAL_TABLE_SLOTS;
-  a->global_table = (struct atto_global_table_slot *)calloc(a->number_of_allocated_global_table_slots, sizeof(struct atto_global_table_slot));
+  a->global_environment = (struct atto_environment *)malloc(sizeof(struct atto_environment));
+  assert(a->global_environment != NULL);
+  a->global_environment->head = NULL;
+  a->global_environment->parent = NULL;
 
   return a;
 }
@@ -34,29 +35,26 @@ void atto_destroy_object(struct atto_object *o)
     atto_destroy_object(o->container.list.cdr);
   }
 
-  if (o->kind == ATTO_OBJECT_KIND_LAMBDA) {
-    free(o->container.lambda->instruction_stream);
-    free(o->container.lambda);
-  }
-
   free(o);
 }
 
 void atto_destroy_state(struct atto_state *a)
 {
   uint32_t i;
+  struct atto_environment_object *current = a->global_environment->head;
 
   for (i = 0; i < a->number_of_symbols; i++) {
     free(a->symbol_names[i]);
   }
 
-  for (i = 0; i < a->number_of_global_objects; i++) {
-    atto_destroy_object(a->global_table[i].body);
+  while (current) {
+    struct atto_environment_object *temp = current->next;
+    free(current->name);
+    free(current);
+    current = temp;
   }
 
   free(a->symbol_names);
-  free(a->global_table);
-
   free(a);
 }
 
@@ -77,19 +75,38 @@ uint64_t atto_save_symbol(struct atto_state *a, char *name)
   return (a->number_of_symbols - 1);
 }
 
-void atto_save_global_object(struct atto_state *a, char *name, struct atto_object *o)
+void atto_add_to_environment(struct atto_environment *env, char *name, uint8_t kind, size_t offset)
 {
   char *temp = (char *)malloc(sizeof(char) * (strlen(name) + 1));
   assert(temp != NULL);
   strcpy(temp, name);
 
-  if (a->number_of_global_objects == a->number_of_allocated_global_table_slots) {
-    a->number_of_allocated_global_table_slots *= 2; /*  that should do it */
-    a->global_table = (struct atto_global_table_slot *)realloc(a->global_table, a->number_of_allocated_global_table_slots * sizeof(struct atto_global_table_slot));
+  struct atto_environment_object *eo = (struct atto_environment_object *)malloc(sizeof(struct atto_environment_object));
+  assert(eo != NULL);
+
+  eo->name = temp;
+  eo->kind = kind;
+  eo->offset = offset;
+  eo->next = env->head;
+  env->head = eo;
+}
+
+struct atto_environment_object *atto_find_in_environment(struct atto_environment *env, char *name)
+{
+  struct atto_environment_object *current = env->head;
+
+  while (current) {
+    if (strcmp(current->name, name) == 0) {
+      return current;
+    }
+
+    current = current->next;
   }
 
-  a->global_table[a->number_of_global_objects].name = temp;
-  a->global_table[a->number_of_global_objects].body = o;
-  a->number_of_global_objects++;
+  if (env->parent == NULL) {
+    return NULL;
+  }
+
+  return atto_find_in_environment(env->parent, name);
 }
 
