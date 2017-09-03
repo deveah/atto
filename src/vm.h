@@ -97,8 +97,13 @@ struct atto_vm_state {
 
   size_t current_instruction_stream_index;
   size_t current_instruction_offset;
+
+  #define ATTO_VM_FLAG_RUNNING (1<<0)
+  uint8_t flags;
 };
 
 struct atto_vm_state *atto_allocate_vm_state(void);
 void atto_destroy_vm_state(struct atto_vm_state *vm);
 void atto_vm_perform_step(struct atto_vm_state *vm);
+void atto_run_vm(struct atto_vm_state *vm);
+

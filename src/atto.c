@@ -69,9 +69,7 @@ void evaluate_string(struct atto_state *a, char *str)
       a->vm_state->current_instruction_stream_index = 0;
       a->vm_state->current_instruction_offset = 0;
 
-      atto_vm_perform_step(a->vm_state);
-      atto_vm_perform_step(a->vm_state);
-      atto_vm_perform_step(a->vm_state);
+      atto_run_vm(a->vm_state);
 
       size_t i;
       for (i = 0; i < a->vm_state->data_stack_size; i++) {

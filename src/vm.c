@@ -196,3 +196,19 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   }
 }
 
+void atto_run_vm(struct atto_vm_state *vm)
+{
+  vm->flags |= ATTO_VM_FLAG_RUNNING;
+
+  printf("vm: run\n");
+
+  while (vm->flags & ATTO_VM_FLAG_RUNNING) {
+    atto_vm_perform_step(vm);
+
+    if (vm->current_instruction_offset >= vm->instruction_streams[vm->current_instruction_stream_index]->length) {
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
+      printf("vm: stop\n");
+    }
+  }
+}
+
