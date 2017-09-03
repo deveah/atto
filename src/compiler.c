@@ -50,11 +50,68 @@ static size_t write_add(struct atto_instruction_stream *is)
   return instruction_size;
 }
 
+static size_t write_get_global(struct atto_instruction_stream *is, size_t offset)
+{
+  const uint8_t opcode = ATTO_VM_OP_GETGL;
+  const size_t instruction_size = sizeof(uint8_t) + sizeof(size_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
+
+  memcpy(is->stream + is->length, &offset, sizeof(size_t));
+  is->length += sizeof(size_t);
+
+  return instruction_size;
+}
+
+static size_t write_get_argument(struct atto_instruction_stream *is, size_t offset)
+{
+  const uint8_t opcode = ATTO_VM_OP_GETAG;
+  const size_t instruction_size = sizeof(uint8_t) + sizeof(size_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
+
+  memcpy(is->stream + is->length, &offset, sizeof(size_t));
+  is->length += sizeof(size_t);
+
+  return instruction_size;
+}
+
+static size_t write_call(struct atto_instruction_stream *is)
+{
+  const uint8_t opcode = ATTO_VM_OP_CALL;
+  const size_t instruction_size = sizeof(uint8_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
+
+  return instruction_size;
+}
+
+static size_t write_return(struct atto_instruction_stream *is)
+{
+  const uint8_t opcode = ATTO_VM_OP_RET;
+  const size_t instruction_size = sizeof(uint8_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
+
+  return instruction_size;
+}
+
 size_t compile_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_expression *e)
 {
   if (e->kind == ATTO_EXPRESSION_KIND_NUMBER_LITERAL) {
-    printf("push_number %lf\n", e->container.number_literal);
     return write_push_number(is, e->container.number_literal);
   }
 
@@ -89,6 +146,57 @@ size_t compile_reference(struct atto_state *a, struct atto_environment *env,
 {
   struct atto_environment_object *eo = NULL;
   
+  eo = atto_find_in_environment(env, name);
+
+  if (eo == NULL) {
+    printf("syntax error: unable to find object `%s'.\n", name);
+    return 0;
+  }
+
+  switch (eo->kind) {
+
+  case ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL:
+    return write_get_global(is, eo->offset);
+
+  case ATTO_ENVIRONMENT_OBJECT_KIND_LOCAL:
+    printf("getlocal %i\n", eo->offset);
+    break;
+
+  case ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT:
+    return write_get_argument(is, eo->offset);
+
+  default:
+    printf("fatal: unrecognised environment object kind: %i\n", eo->kind);
+  }
+
+  return (1 + sizeof(uint64_t));
+}
+
+size_t compile_if_expression(struct atto_state *a, struct atto_environment *env,
+  struct atto_instruction_stream *is, struct atto_if_expression *ie)
+{
+  compile_expression(a, env, is, ie->condition_expression);
+  printf("brf temp\n");
+  compile_expression(a, env, is, ie->true_evaluation_expression);
+  printf("ret\n");
+  printf("temp:\n");
+  compile_expression(a, env, is, ie->false_evaluation_expression);
+  printf("ret\n");
+
+  return 0;
+}
+
+size_t compile_application_expression(struct atto_state *a, struct atto_environment *env,
+  struct atto_instruction_stream *is, struct atto_application_expression *ae)
+{
+  char *name = ae->identifier;
+  uint32_t i = ae->number_of_parameters - 1;
+
+  do {
+    compile_expression(a, env, is, ae->parameters[i]);
+    i--;
+  } while (i + 1 > 0);
+
   /*  we first see if it's a built-in function */
   if (strcmp(name, "add") == 0) {
     return write_add(is);
@@ -130,60 +238,8 @@ size_t compile_reference(struct atto_state *a, struct atto_environment *env,
     return 1;
   }
 
-  /*  if not, maybe the user defined it */
-  eo = atto_find_in_environment(env, name);
-
-  if (eo == NULL) {
-    printf("syntax error: unable to find object `%s'.\n", name);
-    return 0;
-  }
-
-  switch (eo->kind) {
-
-  case ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL:
-    printf("getglobal %i\n", eo->offset);
-    break;
-
-  case ATTO_ENVIRONMENT_OBJECT_KIND_LOCAL:
-    printf("getlocal %i\n", eo->offset);
-    break;
-
-  case ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT:
-    printf("getargument %i\n", eo->offset);
-    break;
-
-  default:
-    printf("fatal: unrecognised environment object kind: %i\n", eo->kind);
-  }
-
-  return (1 + sizeof(uint64_t));
-}
-
-size_t compile_if_expression(struct atto_state *a, struct atto_environment *env,
-  struct atto_instruction_stream *is, struct atto_if_expression *ie)
-{
-  compile_expression(a, env, is, ie->condition_expression);
-  printf("brf temp\n");
-  compile_expression(a, env, is, ie->true_evaluation_expression);
-  printf("ret\n");
-  printf("temp:\n");
-  compile_expression(a, env, is, ie->false_evaluation_expression);
-  printf("ret\n");
-
-  return 0;
-}
-
-size_t compile_application_expression(struct atto_state *a, struct atto_environment *env,
-  struct atto_instruction_stream *is, struct atto_application_expression *ae) {
-  uint32_t i = ae->number_of_parameters - 1;
-
-  do {
-    compile_expression(a, env, is, ae->parameters[i]);
-    i--;
-  } while (i + 1 > 0);
-
   compile_reference(a, env, is, ae->identifier);
-  printf("call\n");
+  write_call(is);
 
   return 0;
 }
@@ -205,7 +261,8 @@ size_t compile_list_literal_expression(struct atto_state *a, struct atto_environ
 }
 
 size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *env,
-  struct atto_instruction_stream *is, struct atto_lambda_expression *le) {
+  struct atto_instruction_stream *is, struct atto_lambda_expression *le)
+{
   uint32_t i;
 
   struct atto_environment *local_env = (struct atto_environment *)malloc(sizeof(struct atto_environment));
@@ -217,12 +274,71 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
     atto_add_to_environment(local_env, le->parameter_names[i], ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT, i);
   }
 
-  compile_expression(a, local_env, is, le->body);
+  struct atto_instruction_stream *lis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
+  lis->length = 0;
+  lis->allocated_length = 32;
+  lis->stream = (uint8_t *)malloc(sizeof(uint8_t) * lis->allocated_length);
 
-  return 0;
+  compile_expression(a, local_env, lis, le->body);
+  write_return(lis);
+
+  /*  add to instruction stream table */
+  a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = lis;
+  a->vm_state->number_of_instruction_streams++;
 }
 
-void compile_definition(struct atto_state *a, struct atto_definition *d);
+void compile_definition(struct atto_state *a, struct atto_definition *d)
+{
+  struct atto_environment_object *eo = NULL;
+  struct atto_instruction_stream *is = NULL;
+  
+  is = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
+  is->length = 0;
+  is->allocated_length = 32;
+  is->stream = (uint8_t *)malloc(sizeof(uint8_t) * is->allocated_length);
+
+  a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = is;
+  a->vm_state->number_of_instruction_streams++;
+
+  compile_expression(a, a->global_environment, is, d->body);
+
+  switch (d->body->kind) {
+  
+  /*  immediate values are compiled and then executed, in order to be saved
+   *  on the stack */
+  case ATTO_EXPRESSION_KIND_NUMBER_LITERAL:
+  case ATTO_EXPRESSION_KIND_SYMBOL_LITERAL:
+  case ATTO_EXPRESSION_KIND_REFERENCE: {
+    a->vm_state->current_instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->current_instruction_offset = 0;
+    atto_run_vm(a->vm_state);
+    break;
+  }
+
+  /*  list literals, if expressions and function applications are the subjects
+   *  of lazy evaluation */
+  case ATTO_EXPRESSION_KIND_LIST_LITERAL:
+  case ATTO_EXPRESSION_KIND_IF:
+  case ATTO_EXPRESSION_KIND_APPLICATION: {
+    a->vm_state->data_stack[a->vm_state->data_stack_size].kind = ATTO_OBJECT_KIND_THUNK;
+    a->vm_state->data_stack[a->vm_state->data_stack_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->data_stack_size++;
+    break;
+  }
+
+  case ATTO_EXPRESSION_KIND_LAMBDA: {
+    a->vm_state->data_stack[a->vm_state->data_stack_size].kind = ATTO_OBJECT_KIND_LAMBDA;
+    a->vm_state->data_stack[a->vm_state->data_stack_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->data_stack_size++;
+    break;
+  }
+
+  default:
+    break;
+  }
+
+  atto_add_to_environment(a->global_environment, d->identifier, ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL, a->vm_state->data_stack_size - 1);
+}
 
 void pretty_print_instruction_stream(struct atto_instruction_stream *is)
 {

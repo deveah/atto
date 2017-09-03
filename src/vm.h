@@ -56,6 +56,7 @@ struct atto_object {
   #define ATTO_OBJECT_KIND_SYMBOL 2
   #define ATTO_OBJECT_KIND_LIST   3
   #define ATTO_OBJECT_KIND_LAMBDA 4
+  #define ATTO_OBJECT_KIND_THUNK  5
   uint8_t kind;
 
   union {
@@ -106,4 +107,5 @@ struct atto_vm_state *atto_allocate_vm_state(void);
 void atto_destroy_vm_state(struct atto_vm_state *vm);
 void atto_vm_perform_step(struct atto_vm_state *vm);
 void atto_run_vm(struct atto_vm_state *vm);
+void pretty_print_stack(struct atto_vm_state *vm);
 

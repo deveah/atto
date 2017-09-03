@@ -48,11 +48,10 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   struct atto_instruction_stream *current_instruction_stream = vm->instruction_streams[vm->current_instruction_stream_index];
   uint8_t opcode = current_instruction_stream->stream[vm->current_instruction_offset];
 
-  printf("vm: op=0x%02x\n", opcode);
-
   switch (opcode) {
   
   case ATTO_VM_OP_NOP: {
+    printf("vm: nop\n");
     vm->current_instruction_offset += 1;
     break;
   }
@@ -62,10 +61,15 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if (vm->data_stack[vm->data_stack_size - 1].kind != ATTO_OBJECT_KIND_LAMBDA) {
       printf("fatal: attempting to call non-lambda object\n");
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
 
-    target_instruction_stream = vm->data_stack[vm->data_stack_size - 1].container.instruction_stream_index;
+    vm->data_stack_size--;
+
+    target_instruction_stream = vm->data_stack[vm->data_stack_size].container.instruction_stream_index;
+
+    printf("vm: call\n");
 
     vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
     vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1 + sizeof(size_t);
@@ -78,8 +82,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   }
 
   case ATTO_VM_OP_RET: {
+    printf("vm: ret\n");
+
     vm->call_stack_size -= 1;
     vm->current_instruction_stream_index = vm->call_stack[vm->call_stack_size].instruction_stream_index;
+
     vm->current_instruction_offset = vm->call_stack[vm->call_stack_size].instruction_offset;
     break;
   }
@@ -97,9 +104,34 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *a = &vm->data_stack[vm->data_stack_size - 1];
     struct atto_object *b = &vm->data_stack[vm->data_stack_size - 2];
 
+    printf("vm: add\n");
+
+    if (a->kind == ATTO_OBJECT_KIND_THUNK) {
+      vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
+      vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1;
+      vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
+      vm->call_stack_size++;
+
+      vm->current_instruction_stream_index = a->container.instruction_stream_index;
+      vm->current_instruction_offset = 0;
+      break;
+    }
+
+    if (b->kind == ATTO_OBJECT_KIND_THUNK) {
+      vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
+      vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1;
+      vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
+      vm->call_stack_size++;
+
+      vm->current_instruction_stream_index = b->container.instruction_stream_index;
+      vm->current_instruction_offset = 0;
+      break;
+    }
+
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
         (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
       printf("fatal: attempting to perform `add' on non-numeric arguments\n");
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
 
@@ -159,6 +191,8 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     double number;
     memcpy(&number, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(double));
 
+    printf("vm: push_number %lf\n", number);
+
     vm->data_stack[vm->data_stack_size].kind = ATTO_OBJECT_KIND_NUMBER;
     vm->data_stack[vm->data_stack_size].container.number = number;
     vm->data_stack_size++;
@@ -182,14 +216,44 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_SWAP:
     break;
 
-  case ATTO_VM_OP_GETGL:
-    break;
+  case ATTO_VM_OP_GETGL: {
+    size_t index;
+    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
-  case ATTO_VM_OP_GETLC:
-    break;
+    printf("vm: getgl %lu\n", index);
 
-  case ATTO_VM_OP_GETAG:
+    vm->data_stack[vm->data_stack_size] = vm->data_stack[index];
+    vm->data_stack_size++;
+
+    vm->current_instruction_offset += 1 + sizeof(size_t);
     break;
+  }
+
+  case ATTO_VM_OP_GETLC: {
+    size_t index;
+    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
+
+    printf("vm: getlc %lu\n", index);
+
+    vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint + index];
+    vm->data_stack_size++;
+
+    vm->current_instruction_offset += 1 + sizeof(size_t);
+    break;
+  }
+
+  case ATTO_VM_OP_GETAG: {
+    size_t index;
+    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
+
+    printf("vm: getag %lu\n", index);
+
+    vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - index - 1];
+    vm->data_stack_size++;
+
+    vm->current_instruction_offset += 1 + sizeof(size_t);
+    break;
+  }
 
   default:
     printf("fatal: unknown opcode\n");
@@ -205,10 +269,55 @@ void atto_run_vm(struct atto_vm_state *vm)
   while (vm->flags & ATTO_VM_FLAG_RUNNING) {
     atto_vm_perform_step(vm);
 
+    printf("stack: ");
+    pretty_print_stack(vm);
+    printf("\n");
+
     if (vm->current_instruction_offset >= vm->instruction_streams[vm->current_instruction_stream_index]->length) {
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       printf("vm: stop\n");
     }
   }
 }
+
+void pretty_print_stack(struct atto_vm_state *vm)
+{
+  size_t i;
+
+  for (i = 0; i < vm->data_stack_size; i++) {
+    
+    if (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint) {
+      printf("| ");
+    }
+
+    switch (vm->data_stack[i].kind) {
+    
+    case ATTO_OBJECT_KIND_NULL:
+      printf("() ");
+      break;
+
+    case ATTO_OBJECT_KIND_NUMBER:
+      printf("num(%lf) ", vm->data_stack[i].container.number);
+      break;
+
+    case ATTO_OBJECT_KIND_SYMBOL:
+      printf("sym(%llu) ", vm->data_stack[i].container.symbol);
+      break;
+
+    case ATTO_OBJECT_KIND_LIST:
+      printf("list() ");
+      break;
+
+    case ATTO_OBJECT_KIND_LAMBDA:
+      printf("lambda() ");
+      break;
+
+    case ATTO_OBJECT_KIND_THUNK:
+      printf("thunk() ");
+      break;
+    
+    }
+  }
+}
+
 

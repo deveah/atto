@@ -43,6 +43,7 @@ struct atto_state {
   struct atto_vm_state *vm_state;
 
   struct atto_environment *global_environment;
+  size_t global_object_count;
 };
 
 struct atto_state *atto_allocate_state(void);
@@ -54,4 +55,6 @@ uint64_t atto_save_symbol(struct atto_state *a, char *name);
 
 void atto_add_to_environment(struct atto_environment *env, char *name, uint8_t kind, size_t offset);
 struct atto_environment_object *atto_find_in_environment(struct atto_environment *env, char *name);
+
+struct atto_object *atto_get_object(struct atto_state *a, struct atto_environment_object *eo);
 

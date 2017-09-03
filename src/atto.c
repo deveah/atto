@@ -15,8 +15,50 @@
 #include "lexer.h"
 #include "compiler.h"
 
-#define COLOR_GREEN "\e[32m"
-#define COLOR_RESET "\e[0m"
+#define COLOR_GREEN  "\e[32m"
+#define COLOR_YELLOW "\e[33m"
+#define COLOR_RESET  "\e[0m"
+
+size_t result_count = 0;
+
+void print_result(struct atto_state *a)
+{
+  struct atto_object *o = NULL;
+
+  printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
+
+  o = &a->vm_state->data_stack[a->vm_state->data_stack_size - 1];
+
+  switch (o->kind) {
+  
+  case ATTO_OBJECT_KIND_NULL:
+    printf("()");
+    break;
+
+  case ATTO_OBJECT_KIND_NUMBER:
+    printf("%e", o->container.number);
+    break;
+
+  case ATTO_OBJECT_KIND_SYMBOL:
+    printf("%s", a->symbol_names[o->container.symbol]);
+    break;
+
+  case ATTO_OBJECT_KIND_LIST:
+    printf("()");
+    break;
+
+  case ATTO_OBJECT_KIND_LAMBDA:
+    printf("lambda#%lu", o->container.instruction_stream_index);
+    break;
+
+  case ATTO_OBJECT_KIND_THUNK:
+    printf("thunk#%lu", o->container.instruction_stream_index);
+    break;
+
+  }
+
+  printf("\n");
+}
 
 void evaluate_string(struct atto_state *a, char *str)
 {
@@ -31,9 +73,25 @@ void evaluate_string(struct atto_state *a, char *str)
   is->stream = (uint8_t *)malloc(sizeof(uint8_t) * is->allocated_length);
 
   if (root->kind == ATTO_AST_NODE_IDENTIFIER) {
-    /*  search in global table for identifier */
-    /*  display its value; if it's a thunk, execute it */
-    /*  TODO */
+    struct atto_environment_object *current = a->global_environment->head;
+
+    while (current) {
+      if (strcmp(current->name, root->container.identifier) == 0) {
+        struct atto_object *o = atto_get_object(a, current);
+        
+        if (o->kind == ATTO_OBJECT_KIND_THUNK) {
+          a->vm_state->current_instruction_stream_index = o->container.instruction_stream_index;
+          a->vm_state->current_instruction_offset = 0;
+
+          atto_run_vm(a->vm_state);
+          print_result(a);
+        }
+
+        break;
+      }
+
+      current = current->next;
+    }
   } else if (root->kind == ATTO_AST_NODE_LIST) {
     struct atto_ast_node *head = root->container.list;
 
@@ -47,21 +105,21 @@ void evaluate_string(struct atto_state *a, char *str)
 
     if (strcmp(head->container.identifier, "define") == 0) {
       struct atto_definition *definition = parse_definition(head);
-      pretty_print_definition(definition);
-      /*  compile */
-      /*  save in global table */
-      /*  TODO */
+      /*pretty_print_definition(definition);*/
+
+      compile_definition(a, definition);
+
       destroy_expression(definition->body);
       free(definition->identifier);
       free(definition);
     } else {
       e = parse_expression(root);
-      pretty_print_expression(e, 0);
-      printf("-------------------------------------------------\n");
+      /*pretty_print_expression(e, 0);
+      printf("-------------------------------------------------\n");*/
       compile_expression(a, a->global_environment, is, e);
 
-      printf("-------------------------------------------------\n");
-      pretty_print_instruction_stream(is);
+      /*printf("-------------------------------------------------\n");
+      pretty_print_instruction_stream(is);*/
 
       a->vm_state->instruction_streams[0] = is;
       a->vm_state->number_of_instruction_streams += 1;
@@ -70,14 +128,7 @@ void evaluate_string(struct atto_state *a, char *str)
       a->vm_state->current_instruction_offset = 0;
 
       atto_run_vm(a->vm_state);
-
-      size_t i;
-      for (i = 0; i < a->vm_state->data_stack_size; i++) {
-        if (a->vm_state->data_stack[i].kind == ATTO_OBJECT_KIND_NUMBER) {
-          printf("%lf ", a->vm_state->data_stack[i].container.number);
-        }
-      }
-      printf("\n");
+      print_result(a);
 
       destroy_expression(e);
     }
