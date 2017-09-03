@@ -22,7 +22,7 @@ struct atto_state *atto_allocate_state(void)
 
   a->number_of_global_objects = 0;
   a->number_of_allocated_global_table_slots = ATTO_MINIMUM_ALLOCATED_GLOBAL_TABLE_SLOTS;
-  a->global_table = (struct atto_global_table_slot **)calloc(a->number_of_allocated_global_table_slots, sizeof(struct atto_global_table_slot *));
+  a->global_table = (struct atto_global_table_slot *)calloc(a->number_of_allocated_global_table_slots, sizeof(struct atto_global_table_slot));
 
   return a;
 }
@@ -51,8 +51,7 @@ void atto_destroy_state(struct atto_state *a)
   }
 
   for (i = 0; i < a->number_of_global_objects; i++) {
-    atto_destroy_object(a->global_table[i]->body);
-    free(a->global_table[i]);
+    atto_destroy_object(a->global_table[i].body);
   }
 
   free(a->symbol_names);
@@ -76,5 +75,21 @@ uint64_t atto_save_symbol(struct atto_state *a, char *name)
   a->number_of_symbols++;
 
   return (a->number_of_symbols - 1);
+}
+
+void atto_save_global_object(struct atto_state *a, char *name, struct atto_object *o)
+{
+  char *temp = (char *)malloc(sizeof(char) * (strlen(name) + 1));
+  assert(temp != NULL);
+  strcpy(temp, name);
+
+  if (a->number_of_global_objects == a->number_of_allocated_global_table_slots) {
+    a->number_of_allocated_global_table_slots *= 2; /*  that should do it */
+    a->global_table = (struct atto_global_table_slot *)realloc(a->global_table, a->number_of_allocated_global_table_slots * sizeof(struct atto_global_table_slot));
+  }
+
+  a->global_table[a->number_of_global_objects].name = temp;
+  a->global_table[a->number_of_global_objects].body = o;
+  a->number_of_global_objects++;
 }
 

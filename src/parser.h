@@ -83,7 +83,7 @@ struct atto_if_expression *parse_if_expression(struct atto_ast_node *head);
 struct atto_application_expression *parse_application_expression(struct atto_ast_node *head);
 struct atto_list_literal_expression *parse_list_literal_expression(struct atto_ast_node *head);
 struct atto_lambda_expression *parse_lambda_expression(struct atto_ast_node *head);
-struct atto_define_form *parse_defition(struct atto_ast_node *head);
+struct atto_definition *parse_definition(struct atto_ast_node *head);
 
 void destroy_ast(struct atto_ast_node *root);
 
@@ -94,7 +94,7 @@ void pretty_print_lambda_expression(struct atto_lambda_expression *e, int level)
 void pretty_print_if_expression(struct atto_if_expression *e, int level);
 void pretty_print_application_expression(struct atto_application_expression *e, int level);
 void pretty_print_expression(struct atto_expression *e, int level);
-void pretty_print_define_form(struct atto_define_form *d);
+void pretty_print_definition(struct atto_definition *d);
 
 void destroy_expression(struct atto_expression *e);
 

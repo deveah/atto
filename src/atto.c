@@ -40,9 +40,14 @@ void evaluate_string(struct atto_state *a, char *str)
     }
 
     if (strcmp(head->container.identifier, "define") == 0) {
+      struct atto_definition *definition = parse_definition(head);
+      pretty_print_definition(definition);
       /*  compile */
       /*  save in global table */
       /*  TODO */
+      destroy_expression(definition->body);
+      free(definition->identifier);
+      free(definition);
     } else {
       e = parse_expression(root);
       pretty_print_expression(e, 0);

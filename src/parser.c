@@ -690,7 +690,6 @@ void pretty_print_definition(struct atto_definition *d)
   printf("  identifier: %s\n", d->identifier);
   printf("  body:\n");
   pretty_print_expression(d->body, 2);
-  printf("\n");
 }
 
 void destroy_expression(struct atto_expression *e)

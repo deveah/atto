@@ -45,7 +45,7 @@ struct atto_state {
   uint32_t number_of_symbols;
   uint32_t number_of_allocated_symbol_slots;
 
-  struct atto_global_table_slot **global_table;
+  struct atto_global_table_slot *global_table;
   uint32_t number_of_global_objects;
   uint32_t number_of_allocated_global_table_slots;
 };
@@ -57,3 +57,4 @@ void atto_destroy_state(struct atto_state *a);
 
 uint64_t atto_save_symbol(struct atto_state *a, char *name);
 
+void atto_save_global_object(struct atto_state *a, char *name, struct atto_object *o);
