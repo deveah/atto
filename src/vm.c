@@ -88,6 +88,12 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_RET: {
     printf("vm: ret\n");
 
+    if (vm->call_stack_size == 0) {
+      printf("vm: finish\n");
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
+      break;
+    }
+
     vm->call_stack_size -= 1;
     vm->current_instruction_stream_index = vm->call_stack[vm->call_stack_size].instruction_stream_index;
 
@@ -114,6 +120,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->data_stack_size = vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - count + 1;
 
     vm->current_instruction_offset += 1 + sizeof(size_t);
+    break;
+  }
+
+  case ATTO_VM_OP_STOP: {
+    vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
     break;
   }
 
@@ -157,8 +168,28 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_DIV:
     break;
 
-  case ATTO_VM_OP_ISEQ:
+  case ATTO_VM_OP_ISEQ: {
+    struct atto_object *a = vm->data_stack[vm->data_stack_size - 1];
+    struct atto_object *b = vm->data_stack[vm->data_stack_size - 2];
+    struct atto_object *c = &vm->heap[vm->heap_size++];
+
+    printf("vm: iseq\n");
+
+    if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
+        (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
+      printf("fatal: attempting to perform `iseq' on non-numeric arguments\n");
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
+      return;
+    }
+
+    vm->data_stack_size -= 1;
+    c->kind = ATTO_OBJECT_KIND_SYMBOL;
+    c->container.symbol = (a->container.number == b->container.number);
+    vm->data_stack[vm->data_stack_size - 1] = c;
+
+    vm->current_instruction_offset += 1;
     break;
+  }
 
   case ATTO_VM_OP_ISLT:
     break;
@@ -297,7 +328,7 @@ void pretty_print_stack(struct atto_vm_state *vm)
   for (i = 0; i < vm->data_stack_size; i++) {
     
     if ((vm->call_stack_size > 0) &&
-        (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint)) {
+        (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint + 1)) {
       printf("| ");
     }
 
@@ -345,7 +376,6 @@ void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o)
 
   /*  TODO: free linked instruction stream */
 
-  printf("o->kind = %i\n", o->kind);
   o->kind = vm->data_stack[vm->data_stack_size - 1]->kind;
   o->container = vm->data_stack[vm->data_stack_size - 1]->container;
 }

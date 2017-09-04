@@ -50,6 +50,19 @@ static size_t write_add(struct atto_instruction_stream *is)
   return instruction_size;
 }
 
+static size_t write_iseq(struct atto_instruction_stream *is)
+{
+  const uint8_t opcode = ATTO_VM_OP_ISEQ;
+  const size_t instruction_size = sizeof(uint8_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
+
+  return instruction_size;
+}
+
 static size_t write_get_global(struct atto_instruction_stream *is, size_t offset)
 {
   const uint8_t opcode = ATTO_VM_OP_GETGL;
@@ -120,6 +133,19 @@ static size_t write_close(struct atto_instruction_stream *is, size_t count)
 
   memcpy(is->stream + is->length, &count, sizeof(size_t));
   is->length += sizeof(size_t);
+
+  return instruction_size;
+}
+
+static size_t write_stop(struct atto_instruction_stream *is)
+{
+  const uint8_t opcode = ATTO_VM_OP_STOP;
+  const size_t instruction_size = sizeof(uint8_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
 
   return instruction_size;
 }
@@ -245,8 +271,7 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
     printf("islet\n");
     return 1;
   } else if (strcmp(name, "eq") == 0) {
-    printf("iseq\n");
-    return 1;
+    return write_iseq(is);
   } else if (strcmp(name, "is") == 0) {
     printf("isseq\n");
     return 1;
@@ -263,6 +288,7 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
 
   compile_reference(a, env, is, ae->identifier);
   write_call(is);
+  write_close(is, ae->number_of_parameters);
 
   return 0;
 }
@@ -305,14 +331,13 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
   lis->stream = (uint8_t *)malloc(sizeof(uint8_t) * lis->allocated_length);
 
   size_t expression_length = compile_expression(a, local_env, lis, le->body);
-  size_t close_length = write_close(lis, le->number_of_parameters);
   size_t return_length = write_return(lis);
 
   /*  add to instruction stream table */
   a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = lis;
   a->vm_state->number_of_instruction_streams++;
 
-  return expression_length + close_length + return_length;
+  return expression_length + return_length;
 }
 
 void compile_definition(struct atto_state *a, struct atto_definition *d)
@@ -327,7 +352,10 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = is;
   a->vm_state->number_of_instruction_streams++;
 
+  atto_add_to_environment(a->global_environment, d->identifier, ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL, a->vm_state->data_stack_size);
+
   compile_expression(a, a->global_environment, is, d->body);
+  write_stop(is);
 
   switch (d->body->kind) {
   
@@ -336,9 +364,7 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   case ATTO_EXPRESSION_KIND_NUMBER_LITERAL:
   case ATTO_EXPRESSION_KIND_SYMBOL_LITERAL:
   case ATTO_EXPRESSION_KIND_REFERENCE: {
-    a->vm_state->current_instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
-    a->vm_state->current_instruction_offset = 0;
-    atto_run_vm(a->vm_state);
+    atto_run_instruction_stream(a->vm_state, a->vm_state->number_of_instruction_streams - 1);
     break;
   }
 
@@ -370,7 +396,6 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
     break;
   }
 
-  atto_add_to_environment(a->global_environment, d->identifier, ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL, a->vm_state->data_stack_size - 1);
 }
 
 void pretty_print_instruction_stream(struct atto_instruction_stream *is)
