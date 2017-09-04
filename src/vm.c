@@ -296,7 +296,8 @@ void pretty_print_stack(struct atto_vm_state *vm)
 
   for (i = 0; i < vm->data_stack_size; i++) {
     
-    if (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint) {
+    if ((vm->call_stack_size > 0) &&
+        (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint)) {
       printf("| ");
     }
 
