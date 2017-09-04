@@ -85,19 +85,19 @@ struct atto_vm_call_stack_entry {
 };
 
 struct atto_vm_state {
-  #define ATTO_VM_MAX_DATA_STACK_SIZE 256
+  #define ATTO_VM_MAX_DATA_STACK_SIZE (size_t)256
   struct atto_object **data_stack;
   size_t data_stack_size;
 
-  #define ATTO_VM_MAX_HEAP_OBJECTS 1024
+  #define ATTO_VM_MAX_HEAP_OBJECTS (size_t)1024
   struct atto_object *heap;
   size_t heap_size;
 
-  #define ATTO_VM_MAX_CALL_STACK_SIZE 256
+  #define ATTO_VM_MAX_CALL_STACK_SIZE (size_t)256
   struct atto_vm_call_stack_entry *call_stack;
   size_t call_stack_size;
 
-  #define ATTO_VM_MIN_NUMBER_OF_INSTRUCTION_STREAMS 64
+  #define ATTO_VM_MIN_NUMBER_OF_INSTRUCTION_STREAMS (size_t)64
   struct atto_instruction_stream **instruction_streams;
   size_t number_of_instruction_streams;
   size_t number_of_allocated_instruction_streams;

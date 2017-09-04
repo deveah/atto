@@ -159,14 +159,16 @@ size_t compile_if_expression(struct atto_state *a, struct atto_environment *env,
   compile_expression(a, env, fis, ie->false_evaluation_expression);
 
   write_opcode(is, ATTO_VM_OP_BF);
-  write_offset(is, is->length + tis->length + sizeof(uint8_t) + sizeof(size_t) + sizeof(uint8_t) + sizeof(size_t) - 1);
+
+  /*  TODO explain black magic */
+  write_offset(is, is->length + tis->length + sizeof(size_t) + sizeof(uint8_t) + sizeof(size_t));
 
   check_buffer(is, tis->length);
   memcpy(is->stream + is->length, tis->stream, tis->length);
   is->length += tis->length;
 
   write_opcode(is, ATTO_VM_OP_B);
-  write_offset(is, is->length + fis->length);
+  write_offset(is, is->length + fis->length + sizeof(size_t));
 
   check_buffer(is, fis->length);
   memcpy(is->stream + is->length, fis->stream, fis->length);

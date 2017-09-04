@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "compiler.h"
 #include "vm.h"
 
 
@@ -58,7 +59,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   
   case ATTO_VM_OP_NOP: {
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: nop\n");
+      printf("vm: %04lu nop\n", vm->current_instruction_offset);
     }
 
     vm->current_instruction_offset += 1;
@@ -69,7 +70,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     size_t target_instruction_stream;
 
     if (vm->data_stack[vm->data_stack_size - 1]->kind != ATTO_OBJECT_KIND_LAMBDA) {
-      printf("fatal: attempting to call non-lambda object\n");
+      printf("vm: fatal: attempting to call non-lambda object\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
@@ -79,11 +80,12 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     target_instruction_stream = vm->data_stack[vm->data_stack_size]->container.instruction_stream_index;
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: call\n");
+      printf("vm: %04lu call\n", vm->current_instruction_offset);
+      pretty_print_instruction_stream(vm->instruction_streams[target_instruction_stream]);
     }
 
     vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
-    vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1;
+    vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + sizeof(uint8_t);
     vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
     vm->call_stack_size++;
 
@@ -94,7 +96,9 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
   case ATTO_VM_OP_RET: {
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: ret\n");
+      printf("vm: %04lu ret (%lu:%lu)\n", vm->current_instruction_offset,
+        vm->call_stack[vm->call_stack_size - 1].instruction_stream_index,
+        vm->call_stack[vm->call_stack_size - 1].instruction_offset);
     }
 
     if (vm->call_stack_size == 0) {
@@ -106,10 +110,10 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
       break;
     }
 
-    vm->call_stack_size -= 1;
+    vm->call_stack_size--;
     vm->current_instruction_stream_index = vm->call_stack[vm->call_stack_size].instruction_stream_index;
-
     vm->current_instruction_offset = vm->call_stack[vm->call_stack_size].instruction_offset;
+    vm->data_stack_size = vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint + 1;
     break;
   }
 
@@ -118,7 +122,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&offset, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: b %lu\n", offset);
+      printf("vm: %04lu b %lu\n", vm->current_instruction_offset, offset);
     }
 
     vm->current_instruction_offset = offset;
@@ -130,11 +134,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&offset, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: bt %lu\n", offset);
+      printf("vm: %04lu bt %lu\n", vm->current_instruction_offset, offset);
     }
 
     if (vm->data_stack[vm->data_stack_size - 1]->kind != ATTO_OBJECT_KIND_SYMBOL) {
-      printf("fatal: attempting to conditionally branch, but no symbol is present.\n");
+      printf("vm: fatal: attempting to conditionally branch, but no symbol is present.\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       break;
     }
@@ -154,11 +158,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&offset, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: bt %lu\n", offset);
+      printf("vm: %04lu bt %lu\n", vm->current_instruction_offset, offset);
     }
 
     if (vm->data_stack[vm->data_stack_size - 1]->kind != ATTO_OBJECT_KIND_SYMBOL) {
-      printf("fatal: attempting to conditionally branch, but no symbol is present.\n");
+      printf("vm: fatal: attempting to conditionally branch, but no symbol is present.\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       break;
     }
@@ -178,11 +182,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&count, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: close %lu\n", count);
+      printf("vm: %04lu close %lu\n", vm->current_instruction_offset, count);
     }
 
-    vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - count] = vm->data_stack[vm->data_stack_size - 1];
-    vm->data_stack_size = vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - count + 1;
+    vm->data_stack[vm->data_stack_size - count - 1] = vm->data_stack[vm->data_stack_size - 1];
+    vm->data_stack_size = vm->data_stack_size - count;
 
     vm->current_instruction_offset += 1 + sizeof(size_t);
     break;
@@ -190,7 +194,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
   case ATTO_VM_OP_STOP: {
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: stop\n");
+      printf("vm: %04lu stop\n", vm->current_instruction_offset);
     }
 
     vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
@@ -203,7 +207,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: add\n");
+      printf("vm: %04lu add\n", vm->current_instruction_offset);
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
@@ -216,7 +220,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
         (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
-      printf("fatal: attempting to perform `add' on non-numeric arguments\n");
+      printf("vm: fatal: attempting to perform `add' on non-numeric arguments\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
@@ -236,7 +240,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: sub\n");
+      printf("vm: %04lu sub\n", vm->current_instruction_offset);
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
@@ -249,7 +253,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
         (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
-      printf("fatal: attempting to perform `add' on non-numeric arguments\n");
+      printf("vm: fatal: attempting to perform `add' on non-numeric arguments\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
@@ -269,7 +273,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: mul\n");
+      printf("vm: %04lu mul\n", vm->current_instruction_offset);
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
@@ -282,7 +286,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
         (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
-      printf("fatal: attempting to perform `add' on non-numeric arguments\n");
+      printf("vm: fatal: attempting to perform `add' on non-numeric arguments\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
@@ -302,7 +306,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: div\n");
+      printf("vm: %04lu div\n", vm->current_instruction_offset);
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
@@ -315,7 +319,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
         (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
-      printf("fatal: attempting to perform `add' on non-numeric arguments\n");
+      printf("vm: fatal: attempting to perform `add' on non-numeric arguments\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
@@ -335,12 +339,12 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: iseq\n");
+      printf("vm: %04lu iseq\n", vm->current_instruction_offset);
     }
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
         (b->kind != ATTO_OBJECT_KIND_NUMBER)) {
-      printf("fatal: attempting to perform `iseq' on non-numeric arguments\n");
+      printf("vm: fatal: attempting to perform `iseq' on non-numeric arguments\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }
@@ -360,7 +364,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: islt\n");
+      printf("vm: %04lu islt\n", vm->current_instruction_offset);
     }
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
@@ -386,6 +390,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
       printf("vm: islet\n");
+      printf("vm: %04lu islet\n", vm->current_instruction_offset);
     }
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
@@ -410,7 +415,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: isgt\n");
+      printf("vm: %04lu isgt\n", vm->current_instruction_offset);
     }
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
@@ -435,7 +440,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: isget\n");
+      printf("vm: %04lu isget\n", vm->current_instruction_offset);
     }
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
@@ -480,7 +485,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&number, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(double));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: push_number %lf\n", number);
+      printf("vm: %04lu push_number %lf\n", vm->current_instruction_offset, number);
     }
 
     vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_NUMBER;
@@ -514,7 +519,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: getgl %lu\n", index);
+      printf("vm: %04lu getgl %lu\n", vm->current_instruction_offset, index);
     }
 
     vm->data_stack[vm->data_stack_size] = vm->data_stack[index];
@@ -530,6 +535,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
       printf("vm: getlc %lu\n", index);
+      printf("vm: %04lu getlc %lu\n", vm->current_instruction_offset, index);
     }
 
     vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint + index];
@@ -544,7 +550,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: getag %lu\n", index);
+      printf("vm: %04lu getag %lu\n", vm->current_instruction_offset, index);
     }
 
     vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - index - 1];
@@ -555,9 +561,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   }
 
   default:
-    printf("fatal: unknown opcode (0x%02x)\n", opcode);
+    printf("vm: fatal: unknown opcode (0x%02x)\n", opcode);
     exit(1);
   }
+
+  pretty_print_stack(vm);
 }
 
 void atto_run_vm(struct atto_vm_state *vm)
@@ -590,7 +598,7 @@ void pretty_print_stack(struct atto_vm_state *vm)
   for (i = 0; i < vm->data_stack_size; i++) {
     
     if ((vm->call_stack_size > 0) &&
-        (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint + 1)) {
+        (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint)) {
       printf("| ");
     }
 
@@ -649,6 +657,10 @@ void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o)
 
 void atto_run_instruction_stream(struct atto_vm_state *vm, size_t index)
 {
+  if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+    pretty_print_instruction_stream(vm->instruction_streams[index]);
+  }
+
   vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
   vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset;
   vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;

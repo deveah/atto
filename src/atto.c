@@ -114,9 +114,6 @@ void evaluate_string(struct atto_state *a, char *str)
       printf("-------------------------------------------------\n");*/
       compile_expression(a, a->global_environment, is, e);
 
-      /*printf("-------------------------------------------------\n");*/
-      pretty_print_instruction_stream(is);
-
       a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = is;
       a->vm_state->number_of_instruction_streams += 1;
 
