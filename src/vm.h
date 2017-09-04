@@ -16,6 +16,7 @@
 #define ATTO_VM_OP_B      0x03
 #define ATTO_VM_OP_BT     0x04
 #define ATTO_VM_OP_BF     0x05
+#define ATTO_VM_OP_CLOSE  0x06
 
 /*  arithmetic operations */
 #define ATTO_VM_OP_ADD    0x10

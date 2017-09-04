@@ -76,7 +76,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     printf("vm: call\n");
 
     vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
-    vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1 + sizeof(size_t);
+    vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1;
     vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
     vm->call_stack_size++;
 
@@ -104,9 +104,23 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_BF:
     break;
 
+  case ATTO_VM_OP_CLOSE: {
+    size_t count;
+    memcpy(&count, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
+
+    printf("vm: close %lu\n", count);
+
+    vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - count] = vm->data_stack[vm->data_stack_size - 1];
+    vm->data_stack_size = vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - count + 1;
+
+    vm->current_instruction_offset += 1 + sizeof(size_t);
+    break;
+  }
+
   case ATTO_VM_OP_ADD: {
     struct atto_object *a = vm->data_stack[vm->data_stack_size - 1];
     struct atto_object *b = vm->data_stack[vm->data_stack_size - 2];
+    struct atto_object *c = &vm->heap[vm->heap_size++];
 
     printf("vm: add\n");
 
@@ -126,7 +140,9 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     }
 
     vm->data_stack_size -= 1;
-    b->container.number += a->container.number;
+    c->kind = ATTO_OBJECT_KIND_NUMBER;
+    c->container.number = a->container.number + b->container.number;
+    vm->data_stack[vm->data_stack_size - 1] = c;
 
     vm->current_instruction_offset += 1;
     break;
@@ -249,7 +265,8 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   }
 
   default:
-    printf("fatal: unknown opcode\n");
+    printf("fatal: unknown opcode (0x%02x)\n", opcode);
+    exit(1);
   }
 }
 

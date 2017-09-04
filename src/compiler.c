@@ -108,6 +108,22 @@ static size_t write_return(struct atto_instruction_stream *is)
   return instruction_size;
 }
 
+static size_t write_close(struct atto_instruction_stream *is, size_t count)
+{
+  const uint8_t opcode = ATTO_VM_OP_CLOSE;
+  const size_t instruction_size = sizeof(uint8_t) + sizeof(size_t);
+
+  check_buffer(is, instruction_size);
+
+  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
+  is->length += sizeof(uint8_t);
+
+  memcpy(is->stream + is->length, &count, sizeof(size_t));
+  is->length += sizeof(size_t);
+
+  return instruction_size;
+}
+
 size_t compile_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_expression *e)
 {
@@ -289,13 +305,14 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
   lis->stream = (uint8_t *)malloc(sizeof(uint8_t) * lis->allocated_length);
 
   size_t expression_length = compile_expression(a, local_env, lis, le->body);
+  size_t close_length = write_close(lis, le->number_of_parameters);
   size_t return_length = write_return(lis);
 
   /*  add to instruction stream table */
   a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = lis;
   a->vm_state->number_of_instruction_streams++;
 
-  return expression_length + return_length;
+  return expression_length + close_length + return_length;
 }
 
 void compile_definition(struct atto_state *a, struct atto_definition *d)
