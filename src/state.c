@@ -26,6 +26,9 @@ struct atto_state *atto_allocate_state(void)
   a->global_environment->head = NULL;
   a->global_environment->parent = NULL;
 
+  /* 0 */ atto_save_symbol(a, "false");
+  /* 1 */ atto_save_symbol(a, "true");
+
   return a;
 }
 

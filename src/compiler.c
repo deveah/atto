@@ -170,14 +170,14 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
     write_opcode(is, ATTO_VM_OP_ADD);
     return 0;
   } else if (strcmp(name, "sub") == 0) {
-    printf("sub\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_SUB);
+    return 0;
   } else if (strcmp(name, "mul") == 0) {
-    printf("mul\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_MUL);
+    return 0;
   } else if (strcmp(name, "div") == 0) {
-    printf("div\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_DIV);
+    return 0;
   } else if (strcmp(name, "gt") == 0) {
     printf("isgt\n");
     return 1;
