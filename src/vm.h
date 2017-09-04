@@ -84,8 +84,12 @@ struct atto_vm_call_stack_entry {
 
 struct atto_vm_state {
   #define ATTO_VM_MAX_DATA_STACK_SIZE 256
-  struct atto_object *data_stack;
+  struct atto_object **data_stack;
   size_t data_stack_size;
+
+  #define ATTO_VM_MAX_HEAP_OBJECTS 1024
+  struct atto_object *heap;
+  size_t heap_size;
 
   #define ATTO_VM_MAX_CALL_STACK_SIZE 256
   struct atto_vm_call_stack_entry *call_stack;
@@ -108,4 +112,4 @@ void atto_destroy_vm_state(struct atto_vm_state *vm);
 void atto_vm_perform_step(struct atto_vm_state *vm);
 void atto_run_vm(struct atto_vm_state *vm);
 void pretty_print_stack(struct atto_vm_state *vm);
-
+void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o);

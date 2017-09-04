@@ -113,15 +113,17 @@ struct atto_environment_object *atto_find_in_environment(struct atto_environment
 struct atto_object *atto_get_object(struct atto_state *a, struct atto_environment_object *eo)
 {
   if (eo->kind == ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL) {
-    return &a->vm_state->data_stack[eo->offset];
+    return a->vm_state->data_stack[eo->offset];
   }
 
   if (eo->kind == ATTO_ENVIRONMENT_OBJECT_KIND_LOCAL) {
-    return &a->vm_state->data_stack[a->vm_state->call_stack[a->vm_state->call_stack_size - 1].stack_offset_at_entrypoint + eo->offset];
+    return a->vm_state->data_stack[a->vm_state->call_stack[a->vm_state->call_stack_size - 1].stack_offset_at_entrypoint + eo->offset];
   }
 
   if (eo->kind == ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT) {
-    return &a->vm_state->data_stack[a->vm_state->call_stack[a->vm_state->call_stack_size - 1].stack_offset_at_entrypoint - eo->offset];
+    return a->vm_state->data_stack[a->vm_state->call_stack[a->vm_state->call_stack_size - 1].stack_offset_at_entrypoint - eo->offset];
   }
+
+  return NULL;
 }
 

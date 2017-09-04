@@ -27,7 +27,7 @@ void print_result(struct atto_state *a)
 
   printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
 
-  o = &a->vm_state->data_stack[a->vm_state->data_stack_size - 1];
+  o = a->vm_state->data_stack[a->vm_state->data_stack_size - 1];
 
   switch (o->kind) {
   
@@ -80,13 +80,10 @@ void evaluate_string(struct atto_state *a, char *str)
         struct atto_object *o = atto_get_object(a, current);
         
         if (o->kind == ATTO_OBJECT_KIND_THUNK) {
-          a->vm_state->current_instruction_stream_index = o->container.instruction_stream_index;
-          a->vm_state->current_instruction_offset = 0;
-
-          atto_run_vm(a->vm_state);
-          print_result(a);
+          evaluate_thunk(a->vm_state, o);
         }
 
+        print_result(a);
         break;
       }
 
@@ -108,6 +105,7 @@ void evaluate_string(struct atto_state *a, char *str)
       /*pretty_print_definition(definition);*/
 
       compile_definition(a, definition);
+      pretty_print_stack(a->vm_state);
 
       destroy_expression(definition->body);
       free(definition->identifier);
@@ -121,13 +119,13 @@ void evaluate_string(struct atto_state *a, char *str)
       /*printf("-------------------------------------------------\n");
       pretty_print_instruction_stream(is);*/
 
-      a->vm_state->instruction_streams[0] = is;
+      a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = is;
       a->vm_state->number_of_instruction_streams += 1;
 
-      a->vm_state->current_instruction_stream_index = 0;
+      a->vm_state->current_instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
       a->vm_state->current_instruction_offset = 0;
-
       atto_run_vm(a->vm_state);
+
       print_result(a);
 
       destroy_expression(e);

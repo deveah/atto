@@ -18,8 +18,12 @@ struct atto_vm_state *atto_allocate_vm_state(void)
   assert(vm != NULL);
 
   vm->data_stack_size = 0;
-  vm->data_stack = (struct atto_object *)malloc(sizeof(struct atto_object) * ATTO_VM_MAX_DATA_STACK_SIZE);
+  vm->data_stack = (struct atto_object **)malloc(sizeof(struct atto_object *) * ATTO_VM_MAX_DATA_STACK_SIZE);
   assert(vm->data_stack != NULL);
+
+  vm->heap_size = 0;
+  vm->heap = (struct atto_object *)malloc(sizeof(struct atto_object) * ATTO_VM_MAX_HEAP_OBJECTS);
+  assert(vm->heap != NULL);
 
   vm->call_stack_size = 0;
   vm->call_stack = (struct atto_vm_call_stack_entry *)malloc(sizeof(struct atto_vm_call_stack_entry) * ATTO_VM_MAX_CALL_STACK_SIZE);
@@ -59,7 +63,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_CALL: {
     size_t target_instruction_stream;
 
-    if (vm->data_stack[vm->data_stack_size - 1].kind != ATTO_OBJECT_KIND_LAMBDA) {
+    if (vm->data_stack[vm->data_stack_size - 1]->kind != ATTO_OBJECT_KIND_LAMBDA) {
       printf("fatal: attempting to call non-lambda object\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
@@ -67,7 +71,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     vm->data_stack_size--;
 
-    target_instruction_stream = vm->data_stack[vm->data_stack_size].container.instruction_stream_index;
+    target_instruction_stream = vm->data_stack[vm->data_stack_size]->container.instruction_stream_index;
 
     printf("vm: call\n");
 
@@ -101,31 +105,17 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     break;
 
   case ATTO_VM_OP_ADD: {
-    struct atto_object *a = &vm->data_stack[vm->data_stack_size - 1];
-    struct atto_object *b = &vm->data_stack[vm->data_stack_size - 2];
+    struct atto_object *a = vm->data_stack[vm->data_stack_size - 1];
+    struct atto_object *b = vm->data_stack[vm->data_stack_size - 2];
 
     printf("vm: add\n");
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
-      vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
-      vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1;
-      vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
-      vm->call_stack_size++;
-
-      vm->current_instruction_stream_index = a->container.instruction_stream_index;
-      vm->current_instruction_offset = 0;
-      break;
+      evaluate_thunk(vm, a);
     }
 
     if (b->kind == ATTO_OBJECT_KIND_THUNK) {
-      vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
-      vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset + 1;
-      vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
-      vm->call_stack_size++;
-
-      vm->current_instruction_stream_index = b->container.instruction_stream_index;
-      vm->current_instruction_offset = 0;
-      break;
+      evaluate_thunk(vm, b);
     }
 
     if ((a->kind != ATTO_OBJECT_KIND_NUMBER) ||
@@ -193,8 +183,11 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     printf("vm: push_number %lf\n", number);
 
-    vm->data_stack[vm->data_stack_size].kind = ATTO_OBJECT_KIND_NUMBER;
-    vm->data_stack[vm->data_stack_size].container.number = number;
+    vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_NUMBER;
+    vm->heap[vm->heap_size].container.number = number;
+    vm->heap_size++;
+
+    vm->data_stack[vm->data_stack_size] = &vm->heap[vm->heap_size - 1];
     vm->data_stack_size++;
 
     vm->current_instruction_offset += 1 + sizeof(double);
@@ -264,14 +257,12 @@ void atto_run_vm(struct atto_vm_state *vm)
 {
   vm->flags |= ATTO_VM_FLAG_RUNNING;
 
-  printf("vm: run\n");
+  printf("vm: run is=%lu, o=%lu\n", vm->current_instruction_stream_index, vm->current_instruction_offset);
 
   while (vm->flags & ATTO_VM_FLAG_RUNNING) {
     atto_vm_perform_step(vm);
 
-    printf("stack: ");
     pretty_print_stack(vm);
-    printf("\n");
 
     if (vm->current_instruction_offset >= vm->instruction_streams[vm->current_instruction_stream_index]->length) {
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
@@ -284,24 +275,26 @@ void pretty_print_stack(struct atto_vm_state *vm)
 {
   size_t i;
 
+  printf("stack: ");
+
   for (i = 0; i < vm->data_stack_size; i++) {
     
     if (i == vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint) {
       printf("| ");
     }
 
-    switch (vm->data_stack[i].kind) {
+    switch (vm->data_stack[i]->kind) {
     
     case ATTO_OBJECT_KIND_NULL:
       printf("() ");
       break;
 
     case ATTO_OBJECT_KIND_NUMBER:
-      printf("num(%lf) ", vm->data_stack[i].container.number);
+      printf("num(%lf) ", vm->data_stack[i]->container.number);
       break;
 
     case ATTO_OBJECT_KIND_SYMBOL:
-      printf("sym(%llu) ", vm->data_stack[i].container.symbol);
+      printf("sym(%lu) ", vm->data_stack[i]->container.symbol);
       break;
 
     case ATTO_OBJECT_KIND_LIST:
@@ -313,11 +306,45 @@ void pretty_print_stack(struct atto_vm_state *vm)
       break;
 
     case ATTO_OBJECT_KIND_THUNK:
-      printf("thunk() ");
+      printf("thunk(%lu) ", vm->data_stack[i]->container.instruction_stream_index);
       break;
-    
+
+    default:
+      printf("bug ");
     }
   }
+
+  printf("\n");
 }
 
+void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o)
+{
+  if (o->kind != ATTO_OBJECT_KIND_THUNK) {
+    return;
+  }
+
+  /*vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
+  vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset;
+  vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
+  vm->call_stack_size++;*/
+
+  size_t saved_instruction_stream_index = vm->current_instruction_stream_index;
+  size_t saved_instruction_offset = vm->current_instruction_offset;
+
+  vm->current_instruction_stream_index = o->container.instruction_stream_index;
+  vm->current_instruction_offset = 0;
+
+  printf("EXECUTING THUNK\n");
+  atto_run_vm(vm);
+  printf("FINISHED EXECUTING THUNK\n");
+
+  vm->current_instruction_stream_index = saved_instruction_stream_index;
+  vm->current_instruction_offset = saved_instruction_offset;
+
+  /*  TODO: free linked instruction stream */
+
+  printf("o->kind = %i\n", o->kind);
+  o->kind = vm->data_stack[vm->data_stack_size - 1]->kind;
+  o->container = vm->data_stack[vm->data_stack_size - 1]->container;
+}
 

@@ -111,12 +111,14 @@ static size_t write_return(struct atto_instruction_stream *is)
 size_t compile_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_expression *e)
 {
+  (void) a;
+
   if (e->kind == ATTO_EXPRESSION_KIND_NUMBER_LITERAL) {
     return write_push_number(is, e->container.number_literal);
   }
 
   if (e->kind == ATTO_EXPRESSION_KIND_SYMBOL_LITERAL) {
-    printf("push_symbol %llu\n", e->container.symbol_literal);
+    printf("push_symbol %lu\n", e->container.symbol_literal);
     return (1 + sizeof(uint64_t));
   }
 
@@ -139,11 +141,16 @@ size_t compile_expression(struct atto_state *a, struct atto_environment *env,
   if (e->kind == ATTO_EXPRESSION_KIND_APPLICATION) {
     return compile_application_expression(a, env, is, e->container.application_expression);
   }
+
+  printf("fatal: unknown expression type `%i'.\n", e->kind);
+  return 0;
 }
 
 size_t compile_reference(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, char *name)
 {
+  (void) a;
+
   struct atto_environment_object *eo = NULL;
   
   eo = atto_find_in_environment(env, name);
@@ -159,7 +166,7 @@ size_t compile_reference(struct atto_state *a, struct atto_environment *env,
     return write_get_global(is, eo->offset);
 
   case ATTO_ENVIRONMENT_OBJECT_KIND_LOCAL:
-    printf("getlocal %i\n", eo->offset);
+    printf("getlocal %lu\n", eo->offset);
     break;
 
   case ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT:
@@ -263,6 +270,8 @@ size_t compile_list_literal_expression(struct atto_state *a, struct atto_environ
 size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_lambda_expression *le)
 {
+  (void) is;
+
   uint32_t i;
 
   struct atto_environment *local_env = (struct atto_environment *)malloc(sizeof(struct atto_environment));
@@ -279,17 +288,18 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
   lis->allocated_length = 32;
   lis->stream = (uint8_t *)malloc(sizeof(uint8_t) * lis->allocated_length);
 
-  compile_expression(a, local_env, lis, le->body);
-  write_return(lis);
+  size_t expression_length = compile_expression(a, local_env, lis, le->body);
+  size_t return_length = write_return(lis);
 
   /*  add to instruction stream table */
   a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = lis;
   a->vm_state->number_of_instruction_streams++;
+
+  return expression_length + return_length;
 }
 
 void compile_definition(struct atto_state *a, struct atto_definition *d)
 {
-  struct atto_environment_object *eo = NULL;
   struct atto_instruction_stream *is = NULL;
   
   is = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
@@ -320,15 +330,21 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   case ATTO_EXPRESSION_KIND_LIST_LITERAL:
   case ATTO_EXPRESSION_KIND_IF:
   case ATTO_EXPRESSION_KIND_APPLICATION: {
-    a->vm_state->data_stack[a->vm_state->data_stack_size].kind = ATTO_OBJECT_KIND_THUNK;
-    a->vm_state->data_stack[a->vm_state->data_stack_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->heap[a->vm_state->heap_size].kind = ATTO_OBJECT_KIND_THUNK;
+    a->vm_state->heap[a->vm_state->heap_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->heap_size++;
+
+    a->vm_state->data_stack[a->vm_state->data_stack_size] = &a->vm_state->heap[a->vm_state->heap_size - 1];
     a->vm_state->data_stack_size++;
     break;
   }
 
   case ATTO_EXPRESSION_KIND_LAMBDA: {
-    a->vm_state->data_stack[a->vm_state->data_stack_size].kind = ATTO_OBJECT_KIND_LAMBDA;
-    a->vm_state->data_stack[a->vm_state->data_stack_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->heap[a->vm_state->heap_size].kind = ATTO_OBJECT_KIND_LAMBDA;
+    a->vm_state->heap[a->vm_state->heap_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
+    a->vm_state->heap_size++;
+
+    a->vm_state->data_stack[a->vm_state->data_stack_size] = &a->vm_state->heap[a->vm_state->heap_size - 1];
     a->vm_state->data_stack_size++;
     break;
   }
@@ -344,7 +360,7 @@ void pretty_print_instruction_stream(struct atto_instruction_stream *is)
 {
   size_t i;
 
-  printf("instruction stream size=%i alloc=%i\n", is->length, is->allocated_length);
+  printf("instruction stream size=%lu alloc=%lu\n", is->length, is->allocated_length);
 
   for (i = 0; i < is->length; i++) {
     printf("0x%02x ", is->stream[i]);
