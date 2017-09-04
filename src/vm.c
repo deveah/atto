@@ -183,7 +183,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: add\n");
+      printf("vm: sub\n");
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
@@ -216,7 +216,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: add\n");
+      printf("vm: mul\n");
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
@@ -249,7 +249,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     struct atto_object *c = &vm->heap[vm->heap_size++];
 
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: add\n");
+      printf("vm: div\n");
     }
 
     if (a->kind == ATTO_OBJECT_KIND_THUNK) {
