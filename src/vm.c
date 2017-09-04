@@ -341,28 +341,24 @@ void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o)
     return;
   }
 
-  /*vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
-  vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset;
-  vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
-  vm->call_stack_size++;*/
-
-  size_t saved_instruction_stream_index = vm->current_instruction_stream_index;
-  size_t saved_instruction_offset = vm->current_instruction_offset;
-
-  vm->current_instruction_stream_index = o->container.instruction_stream_index;
-  vm->current_instruction_offset = 0;
-
-  printf("EXECUTING THUNK\n");
-  atto_run_vm(vm);
-  printf("FINISHED EXECUTING THUNK\n");
-
-  vm->current_instruction_stream_index = saved_instruction_stream_index;
-  vm->current_instruction_offset = saved_instruction_offset;
+  atto_run_instruction_stream(vm, o->container.instruction_stream_index);
 
   /*  TODO: free linked instruction stream */
 
   printf("o->kind = %i\n", o->kind);
   o->kind = vm->data_stack[vm->data_stack_size - 1]->kind;
   o->container = vm->data_stack[vm->data_stack_size - 1]->container;
+}
+
+void atto_run_instruction_stream(struct atto_vm_state *vm, size_t index)
+{
+  vm->call_stack[vm->call_stack_size].instruction_stream_index = vm->current_instruction_stream_index;
+  vm->call_stack[vm->call_stack_size].instruction_offset = vm->current_instruction_offset;
+  vm->call_stack[vm->call_stack_size].stack_offset_at_entrypoint = vm->data_stack_size;
+  vm->call_stack_size++;
+
+  vm->current_instruction_stream_index = index;
+  vm->current_instruction_offset = 0;
+  atto_run_vm(vm);
 }
 

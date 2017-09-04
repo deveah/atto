@@ -114,3 +114,5 @@ void atto_vm_perform_step(struct atto_vm_state *vm);
 void atto_run_vm(struct atto_vm_state *vm);
 void pretty_print_stack(struct atto_vm_state *vm);
 void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o);
+void atto_run_instruction_stream(struct atto_vm_state *vm, size_t index);
+
