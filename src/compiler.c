@@ -143,13 +143,34 @@ size_t compile_reference(struct atto_state *a, struct atto_environment *env,
 size_t compile_if_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_if_expression *ie)
 {
+  struct atto_instruction_stream *tis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
+  tis->length = 0;
+  tis->allocated_length = 32;
+  tis->stream = (uint8_t *)malloc(sizeof(uint8_t) * tis->allocated_length);
+
+  struct atto_instruction_stream *fis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
+  fis->length = 0;
+  fis->allocated_length = 32;
+  fis->stream = (uint8_t *)malloc(sizeof(uint8_t) * fis->allocated_length);
+
   compile_expression(a, env, is, ie->condition_expression);
-  printf("brf temp\n");
-  compile_expression(a, env, is, ie->true_evaluation_expression);
-  printf("ret\n");
-  printf("temp:\n");
-  compile_expression(a, env, is, ie->false_evaluation_expression);
-  printf("ret\n");
+  
+  compile_expression(a, env, tis, ie->true_evaluation_expression);
+  compile_expression(a, env, fis, ie->false_evaluation_expression);
+
+  write_opcode(is, ATTO_VM_OP_BF);
+  write_offset(is, is->length + tis->length + sizeof(uint8_t) + sizeof(size_t) + sizeof(uint8_t) + sizeof(size_t) - 1);
+
+  check_buffer(is, tis->length);
+  memcpy(is->stream + is->length, tis->stream, tis->length);
+  is->length += tis->length;
+
+  write_opcode(is, ATTO_VM_OP_B);
+  write_offset(is, is->length + fis->length);
+
+  check_buffer(is, fis->length);
+  memcpy(is->stream + is->length, fis->stream, fis->length);
+  is->length += fis->length;
 
   return 0;
 }
@@ -179,17 +200,17 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
     write_opcode(is, ATTO_VM_OP_DIV);
     return 0;
   } else if (strcmp(name, "gt") == 0) {
-    printf("isgt\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_ISGT);
+    return 0;
   } else if (strcmp(name, "get") == 0) {
-    printf("isget\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_ISGET);
+    return 0;
   } else if (strcmp(name, "lt") == 0) {
-    printf("islt\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_ISLT);
+    return 0;
   } else if (strcmp(name, "let") == 0) {
-    printf("islet\n");
-    return 1;
+    write_opcode(is, ATTO_VM_OP_ISLET);
+    return 0;
   } else if (strcmp(name, "eq") == 0) {
     write_opcode(is, ATTO_VM_OP_ISEQ);
     return 0;
