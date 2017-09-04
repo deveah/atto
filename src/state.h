@@ -58,3 +58,5 @@ struct atto_environment_object *atto_find_in_environment(struct atto_environment
 
 struct atto_object *atto_get_object(struct atto_state *a, struct atto_environment_object *eo);
 
+void pretty_print_environment(struct atto_environment *env);
+

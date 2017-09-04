@@ -21,13 +21,9 @@
 
 size_t result_count = 0;
 
-void print_result(struct atto_state *a)
+void print_result(struct atto_state *a, struct atto_object *o)
 {
-  struct atto_object *o = NULL;
-
   printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
-
-  o = a->vm_state->data_stack[a->vm_state->data_stack_size - 1];
 
   switch (o->kind) {
   
@@ -83,7 +79,7 @@ void evaluate_string(struct atto_state *a, char *str)
           evaluate_thunk(a->vm_state, o);
         }
 
-        print_result(a);
+        print_result(a, o);
         break;
       }
 
@@ -105,7 +101,9 @@ void evaluate_string(struct atto_state *a, char *str)
       /*pretty_print_definition(definition);*/
 
       compile_definition(a, definition);
-      pretty_print_stack(a->vm_state);
+      /*pretty_print_stack(a->vm_state);*/
+      
+      print_result(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
 
       destroy_expression(definition->body);
       free(definition->identifier);
@@ -126,7 +124,7 @@ void evaluate_string(struct atto_state *a, char *str)
       a->vm_state->current_instruction_offset = 0;
       atto_run_vm(a->vm_state);
 
-      print_result(a);
+      print_result(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
 
       destroy_expression(e);
     }
@@ -144,6 +142,7 @@ int main(int argc, char **argv)
   char *line_buffer = NULL;
 
   printf("atto alpha -- https://github.com/deveah/atto\n");
+  printf("type " COLOR_YELLOW "-help" COLOR_RESET " in case of emergency\n");
   
   rl_variable_bind("blink-matching-paren", "on");
 
@@ -158,9 +157,51 @@ int main(int argc, char **argv)
       break;
     }
 
-    if (strcmp(line_buffer, "exit") == 0) {
+    if (strcmp(line_buffer, "-exit") == 0) {
       free(line_buffer);
       break;
+    }
+
+    if (strcmp(line_buffer, "-help") == 0) {
+      printf("REPL commands:\n");
+      printf(COLOR_YELLOW "  -exit\n" COLOR_RESET);
+      printf(COLOR_YELLOW "  -stack\t" COLOR_RESET "displays the stack\n");
+      printf(COLOR_YELLOW "  -env\t\t" COLOR_RESET "displays the global environment\n");
+      printf(COLOR_YELLOW "  -verbose-on\n" COLOR_RESET);
+      printf(COLOR_YELLOW "  -verbose-off\n" COLOR_RESET);
+      printf(COLOR_YELLOW "  -heap-usage\n" COLOR_RESET);
+      free(line_buffer);
+      continue;
+    }
+
+    if (strcmp(line_buffer, "-stack") == 0) {
+      pretty_print_stack(a->vm_state);
+      free(line_buffer);
+      continue;
+    }
+
+    if (strcmp(line_buffer, "-env") == 0) {
+      pretty_print_environment(a->global_environment);
+      free(line_buffer);
+      continue;
+    }
+
+    if (strcmp(line_buffer, "-verbose-on") == 0) {
+      a->vm_state->flags |= ATTO_VM_FLAG_VERBOSE;
+      free(line_buffer);
+      continue;
+    }
+
+    if (strcmp(line_buffer, "-verbose-off") == 0) {
+      a->vm_state->flags &= ~(ATTO_VM_FLAG_VERBOSE);
+      free(line_buffer);
+      continue;
+    }
+
+    if (strcmp(line_buffer, "-heap-usage") == 0) {
+      pretty_print_heap_usage(a->vm_state);
+      free(line_buffer);
+      continue;
     }
 
     evaluate_string(a, line_buffer);

@@ -106,6 +106,7 @@ struct atto_vm_state {
   size_t current_instruction_offset;
 
   #define ATTO_VM_FLAG_RUNNING (1<<0)
+  #define ATTO_VM_FLAG_VERBOSE (1<<1)
   uint8_t flags;
 };
 
@@ -114,6 +115,7 @@ void atto_destroy_vm_state(struct atto_vm_state *vm);
 void atto_vm_perform_step(struct atto_vm_state *vm);
 void atto_run_vm(struct atto_vm_state *vm);
 void pretty_print_stack(struct atto_vm_state *vm);
+void pretty_print_heap_usage(struct atto_vm_state *vm);
 void evaluate_thunk(struct atto_vm_state *vm, struct atto_object *o);
 void atto_run_instruction_stream(struct atto_vm_state *vm, size_t index);
 

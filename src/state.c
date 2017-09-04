@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "state.h"
 
@@ -125,5 +126,34 @@ struct atto_object *atto_get_object(struct atto_state *a, struct atto_environmen
   }
 
   return NULL;
+}
+
+void pretty_print_environment(struct atto_environment *env)
+{
+  struct atto_environment_object *current = env->head;
+
+  while (current) {
+    printf("%s => ", current->name);
+
+    switch (current->kind) {
+    
+    case ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL:
+      printf("global ");
+      break;
+
+    case ATTO_ENVIRONMENT_OBJECT_KIND_LOCAL:
+      printf("local ");
+      break;
+
+    case ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT:
+      printf("argument ");
+      break;
+
+    }
+
+    printf("%lu\n", current->offset);
+
+    current = current->next;
+  }
 }
 
