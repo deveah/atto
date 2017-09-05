@@ -243,11 +243,12 @@ size_t compile_list_literal_expression(struct atto_state *a, struct atto_environ
 {
   uint32_t i = lle->number_of_elements - 1;
 
-  printf("pushz\n");
+  write_opcode(is, ATTO_VM_OP_PUSHZ);
 
   do {
+    /*  TODO: wrap expressions in individual thunks */
     compile_expression(a, env, is, lle->elements[i]);
-    printf("cons\n");
+    write_opcode(is, ATTO_VM_OP_CONS);
     i--;
   } while (i + 1 > 0);
 

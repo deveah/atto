@@ -471,14 +471,63 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_AND:
     break;
 
-  case ATTO_VM_OP_CAR:
-    break;
+  case ATTO_VM_OP_CAR: {
+    struct atto_object *list = vm->data_stack[vm->data_stack_size - 1];
 
-  case ATTO_VM_OP_CDR:
-    break;
+    if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+      printf("vm: %04lu car\n", vm->current_instruction_offset);
+    }
 
-  case ATTO_VM_OP_CONS:
+    if (list->kind != ATTO_OBJECT_KIND_LIST) {
+      printf("fatal: attempting to perform `car' on an invalid operand\n");
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
+      return;
+    }
+
+    vm->data_stack[vm->data_stack_size - 1] = list->container.list.car;
+
+    vm->current_instruction_offset += 1;
     break;
+  }
+
+  case ATTO_VM_OP_CDR: {
+    struct atto_object *list = vm->data_stack[vm->data_stack_size - 1];
+
+    if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+      printf("vm: %04lu cdr\n", vm->current_instruction_offset);
+    }
+
+    if (list->kind != ATTO_OBJECT_KIND_LIST) {
+      printf("fatal: attempting to perform `car' on an invalid operand\n");
+      vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
+      return;
+    }
+
+    vm->data_stack[vm->data_stack_size - 1] = list->container.list.cdr;
+
+    vm->current_instruction_offset += 1;
+    break;
+  }
+
+  case ATTO_VM_OP_CONS: {
+    struct atto_object *a = vm->data_stack[vm->data_stack_size - 1];
+    struct atto_object *b = vm->data_stack[vm->data_stack_size - 2];
+    struct atto_object *c = &vm->heap[vm->heap_size++];
+
+    if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+      printf("vm: %04lu cons\n", vm->current_instruction_offset);
+    }
+
+    c->kind = ATTO_OBJECT_KIND_LIST;
+    c->container.list.car = b;
+    c->container.list.cdr = a;
+
+    vm->data_stack_size--;
+    vm->data_stack[vm->data_stack_size - 1] = c;
+
+    vm->current_instruction_offset += 1;
+    break;
+  }
 
   case ATTO_VM_OP_PUSHN: {
     double number;
@@ -502,8 +551,15 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_PUSHS:
     break;
 
-  case ATTO_VM_OP_PUSHZ:
+  case ATTO_VM_OP_PUSHZ: {
+    struct atto_object *empty_list = &vm->heap[vm->heap_size++];
+    empty_list->kind = ATTO_OBJECT_KIND_NULL;
+
+    vm->data_stack[vm->data_stack_size++] = empty_list;
+
+    vm->current_instruction_offset += 1;
     break;
+  }
 
   case ATTO_VM_OP_DUP:
     break;
@@ -564,8 +620,6 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     printf("vm: fatal: unknown opcode (0x%02x)\n", opcode);
     exit(1);
   }
-
-  pretty_print_stack(vm);
 }
 
 void atto_run_vm(struct atto_vm_state *vm)
