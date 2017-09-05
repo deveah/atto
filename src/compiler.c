@@ -73,8 +73,9 @@ size_t compile_expression(struct atto_state *a, struct atto_environment *env,
   }
 
   if (e->kind == ATTO_EXPRESSION_KIND_SYMBOL_LITERAL) {
-    printf("push_symbol %lu\n", e->container.symbol_literal);
-    return (1 + sizeof(uint64_t));
+    size_t os = write_opcode(is, ATTO_VM_OP_PUSHS);
+    size_t ss = write_symbol(is, e->container.symbol_literal);
+    return (os + ss);
   }
 
   if (e->kind == ATTO_EXPRESSION_KIND_REFERENCE) {
@@ -181,12 +182,13 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
   struct atto_instruction_stream *is, struct atto_application_expression *ae)
 {
   char *name = ae->identifier;
-  uint32_t i = ae->number_of_parameters - 1;
+  int i = ae->number_of_parameters;
 
   do {
-    compile_expression(a, env, is, ae->parameters[i]);
+    printf("%s: compiled param %i\n", name, i);
+    compile_expression(a, env, is, ae->parameters[i-1]);
     i--;
-  } while (i + 1 > 0);
+  } while (i > 0);
 
   /*  we first see if it's a built-in function */
   if (strcmp(name, "add") == 0) {

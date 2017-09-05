@@ -548,8 +548,24 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     break;
   }
 
-  case ATTO_VM_OP_PUSHS:
+  case ATTO_VM_OP_PUSHS: {
+    uint64_t symbol;
+    memcpy(&symbol, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(uint64_t));
+
+    if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+      printf("vm: %04lu push_symbol %lu\n", vm->current_instruction_offset, symbol);
+    }
+
+    vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_SYMBOL;
+    vm->heap[vm->heap_size].container.symbol = symbol;
+    vm->heap_size++;
+
+    vm->data_stack[vm->data_stack_size] = &vm->heap[vm->heap_size - 1];
+    vm->data_stack_size++;
+
+    vm->current_instruction_offset += 1 + sizeof(double);
     break;
+  }
 
   case ATTO_VM_OP_PUSHZ: {
     struct atto_object *empty_list = &vm->heap[vm->heap_size++];
@@ -619,6 +635,10 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   default:
     printf("vm: fatal: unknown opcode (0x%02x)\n", opcode);
     exit(1);
+  }
+
+  if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+    pretty_print_stack(vm);
   }
 }
 
