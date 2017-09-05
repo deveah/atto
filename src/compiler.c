@@ -185,7 +185,6 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
   int i = ae->number_of_parameters;
 
   do {
-    printf("%s: compiled param %i\n", name, i);
     compile_expression(a, env, is, ae->parameters[i-1]);
     i--;
   } while (i > 0);
