@@ -333,7 +333,7 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   case ATTO_EXPRESSION_KIND_NUMBER_LITERAL:
   case ATTO_EXPRESSION_KIND_SYMBOL_LITERAL:
   case ATTO_EXPRESSION_KIND_REFERENCE: {
-    printf("running instruction stream %i\n", definition_instruction_stream_index);
+    printf("running instruction stream %lu\n", definition_instruction_stream_index);
     atto_run_instruction_stream(a->vm_state, definition_instruction_stream_index);
     break;
   }
@@ -347,7 +347,7 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
     a->vm_state->heap[a->vm_state->heap_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
     a->vm_state->heap_size++;
 
-    a->vm_state->data_stack[a->vm_state->data_stack_size] = &a->vm_state->heap[a->vm_state->heap_size - 1];
+    a->vm_state->data_stack[a->vm_state->data_stack_size] = a->vm_state->heap_size - 1;
     a->vm_state->data_stack_size++;
     break;
   }

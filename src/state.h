@@ -56,7 +56,7 @@ uint64_t atto_save_symbol(struct atto_state *a, char *name);
 void atto_add_to_environment(struct atto_environment *env, char *name, uint8_t kind, size_t offset);
 struct atto_environment_object *atto_find_in_environment(struct atto_environment *env, char *name);
 
-struct atto_object *atto_get_object(struct atto_state *a, struct atto_environment_object *eo);
+size_t atto_get_object(struct atto_state *a, struct atto_environment_object *eo);
 
 void pretty_print_environment(struct atto_environment *env);
 

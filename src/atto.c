@@ -21,56 +21,56 @@
 
 size_t result_count = 0;
 
-static void pretty_print_list(struct atto_state *a, struct atto_object *o);
+static void pretty_print_list(struct atto_state *a, size_t index);
 
-void pretty_print_object(struct atto_state *a, struct atto_object *o)
+void pretty_print_object(struct atto_state *a, size_t index)
 {
-  switch (o->kind) {
+  switch (a->vm_state->heap[index].kind) {
   
   case ATTO_OBJECT_KIND_NULL:
     printf("()");
     break;
 
   case ATTO_OBJECT_KIND_NUMBER:
-    printf("%e", o->container.number);
+    printf("%e", a->vm_state->heap[index].container.number);
     break;
 
   case ATTO_OBJECT_KIND_SYMBOL:
-    printf("%s", a->symbol_names[o->container.symbol]);
+    printf("%s", a->symbol_names[a->vm_state->heap[index].container.symbol]);
     break;
 
   case ATTO_OBJECT_KIND_LIST:
-    pretty_print_list(a, o);
+    pretty_print_list(a, index);
     break;
 
   case ATTO_OBJECT_KIND_LAMBDA:
-    printf("lambda#%lu", o->container.instruction_stream_index);
+    printf("lambda#%lu", a->vm_state->heap[index].container.instruction_stream_index);
     break;
 
   case ATTO_OBJECT_KIND_THUNK:
-    printf("thunk#%lu", o->container.instruction_stream_index);
+    printf("thunk#%lu", a->vm_state->heap[index].container.instruction_stream_index);
     break;
 
   }
 }
 
-static void pretty_print_list(struct atto_state *a, struct atto_object *o)
+static void pretty_print_list(struct atto_state *a, size_t index)
 {
   printf("(");
-  pretty_print_object(a, o->container.list.car);
+  pretty_print_object(a, a->vm_state->heap[index].container.list.car);
 
-  if (o->container.list.cdr->kind != ATTO_OBJECT_KIND_NULL) {
+  if (a->vm_state->heap[a->vm_state->heap[index].container.list.cdr].kind != ATTO_OBJECT_KIND_NULL) {
     printf(" ");
-    pretty_print_list(a, o->container.list.cdr);
+    pretty_print_list(a, a->vm_state->heap[index].container.list.cdr);
   }
 
   printf(")");
 }
 
-static void pretty_print_result(struct atto_state *a, struct atto_object *o)
+static void pretty_print_result(struct atto_state *a, size_t index)
 {
   printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
-  pretty_print_object(a, o);
+  pretty_print_object(a, index);
   printf("\n");
 }
 
@@ -91,9 +91,9 @@ void evaluate_string(struct atto_state *a, char *str)
 
     while (current) {
       if (strcmp(current->name, root->container.identifier) == 0) {
-        struct atto_object *o = atto_get_object(a, current);
+        size_t o = atto_get_object(a, current);
         
-        if (o->kind == ATTO_OBJECT_KIND_THUNK) {
+        if (a->vm_state->heap[o].kind == ATTO_OBJECT_KIND_THUNK) {
           evaluate_thunk(a->vm_state, o);
         }
 

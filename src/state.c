@@ -32,16 +32,6 @@ struct atto_state *atto_allocate_state(void)
   return a;
 }
 
-void atto_destroy_object(struct atto_object *o)
-{
-  if (o->kind == ATTO_OBJECT_KIND_LIST) {
-    atto_destroy_object(o->container.list.car);
-    atto_destroy_object(o->container.list.cdr);
-  }
-
-  free(o);
-}
-
 void atto_destroy_state(struct atto_state *a)
 {
   uint32_t i;
@@ -114,7 +104,7 @@ struct atto_environment_object *atto_find_in_environment(struct atto_environment
   return atto_find_in_environment(env->parent, name);
 }
 
-struct atto_object *atto_get_object(struct atto_state *a, struct atto_environment_object *eo)
+size_t atto_get_object(struct atto_state *a, struct atto_environment_object *eo)
 {
   if (eo->kind == ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL) {
     return a->vm_state->data_stack[eo->offset];
@@ -128,7 +118,7 @@ struct atto_object *atto_get_object(struct atto_state *a, struct atto_environmen
     return a->vm_state->data_stack[a->vm_state->call_stack[a->vm_state->call_stack_size - 1].stack_offset_at_entrypoint - eo->offset];
   }
 
-  return NULL;
+  return 0;
 }
 
 void pretty_print_environment(struct atto_environment *env)
