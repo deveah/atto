@@ -21,10 +21,10 @@
 
 size_t result_count = 0;
 
-void print_result(struct atto_state *a, struct atto_object *o)
-{
-  printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
+static void pretty_print_list(struct atto_state *a, struct atto_object *o);
 
+static void pretty_print_object(struct atto_state *a, struct atto_object *o)
+{
   switch (o->kind) {
   
   case ATTO_OBJECT_KIND_NULL:
@@ -40,7 +40,7 @@ void print_result(struct atto_state *a, struct atto_object *o)
     break;
 
   case ATTO_OBJECT_KIND_LIST:
-    printf("()");
+    pretty_print_list(a, o);
     break;
 
   case ATTO_OBJECT_KIND_LAMBDA:
@@ -54,6 +54,22 @@ void print_result(struct atto_state *a, struct atto_object *o)
   }
 
   printf("\n");
+}
+
+static void pretty_print_list(struct atto_state *a, struct atto_object *o)
+{
+  pretty_print_object(a, o->container.list.car);
+  printf(" ");
+
+  if (o->container.list.cdr->kind != ATTO_OBJECT_KIND_NULL) {
+    pretty_print_list(a, o->container.list.cdr);
+  }
+}
+
+static void pretty_print_result(struct atto_state *a, struct atto_object *o)
+{
+  printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
+  pretty_print_object(a, o);
 }
 
 void evaluate_string(struct atto_state *a, char *str)
@@ -79,7 +95,7 @@ void evaluate_string(struct atto_state *a, char *str)
           evaluate_thunk(a->vm_state, o);
         }
 
-        print_result(a, o);
+        pretty_print_object(a, o);
         break;
       }
 
@@ -103,7 +119,7 @@ void evaluate_string(struct atto_state *a, char *str)
       compile_definition(a, definition);
       /*pretty_print_stack(a->vm_state);*/
       
-      print_result(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
+      pretty_print_object(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
 
       destroy_expression(definition->body);
       free(definition->identifier);
@@ -121,7 +137,7 @@ void evaluate_string(struct atto_state *a, char *str)
       a->vm_state->current_instruction_offset = 0;
       atto_run_vm(a->vm_state);
 
-      print_result(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
+      pretty_print_object(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
 
       destroy_expression(e);
     }

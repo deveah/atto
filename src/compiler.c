@@ -168,6 +168,7 @@ size_t compile_if_expression(struct atto_state *a, struct atto_environment *env,
   memcpy(is->stream + is->length, tis->stream, tis->length);
   is->length += tis->length;
 
+  check_buffer(is, sizeof(uint8_t) + sizeof(size_t));
   write_opcode(is, ATTO_VM_OP_B);
   write_offset(is, is->length + fis->length + sizeof(size_t));
 
@@ -229,6 +230,18 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
   } else if (strcmp(name, "not") == 0) {
     printf("not\n");
     return 1;
+  } else if (strcmp(name, "car") == 0) {
+    write_opcode(is, ATTO_VM_OP_CAR);
+    return 1;
+  } else if (strcmp(name, "cdr") == 0) {
+    write_opcode(is, ATTO_VM_OP_CAR);
+    return 1;
+  } else if (strcmp(name, "cons") == 0) {
+    write_opcode(is, ATTO_VM_OP_CONS);
+    return 1;
+  } else if (strcmp(name, "null") == 0) {
+    write_opcode(is, ATTO_VM_OP_ISNULL);
+    return 1;
   }
 
   compile_reference(a, env, is, ae->identifier);
@@ -242,16 +255,20 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
 size_t compile_list_literal_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_list_literal_expression *lle)
 {
-  uint32_t i = lle->number_of_elements - 1;
+  int i = lle->number_of_elements;
 
   write_opcode(is, ATTO_VM_OP_PUSHZ);
 
+  if (lle->number_of_elements == 0) {
+    return 1;
+  }
+
   do {
     /*  TODO: wrap expressions in individual thunks */
-    compile_expression(a, env, is, lle->elements[i]);
+    compile_expression(a, env, is, lle->elements[i - 1]);
     write_opcode(is, ATTO_VM_OP_CONS);
     i--;
-  } while (i + 1 > 0);
+  } while (i > 0);
 
   return 0;
 }
@@ -267,6 +284,7 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
   assert(local_env != NULL);
 
   local_env->parent = env;
+  local_env->head = NULL;
 
   for (i = 0; i < le->number_of_parameters; i++) {
     atto_add_to_environment(local_env, le->parameter_names[i], ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT, i);

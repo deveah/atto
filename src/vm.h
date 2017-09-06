@@ -35,6 +35,7 @@
 #define ATTO_VM_OP_NOT    0x21
 #define ATTO_VM_OP_OR     0x22
 #define ATTO_VM_OP_AND    0x23
+#define ATTO_VM_OP_ISNULL 0x24
 
 /*  list operations */
 #define ATTO_VM_OP_CAR    0x30

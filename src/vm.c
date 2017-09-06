@@ -471,6 +471,21 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   case ATTO_VM_OP_AND:
     break;
 
+  case ATTO_VM_OP_ISNULL: {
+    struct atto_object *o = vm->data_stack[vm->data_stack_size - 1];
+    
+    if (o->kind == ATTO_OBJECT_KIND_NULL) {
+      o->container.symbol = 1;
+    } else {
+      o->container.symbol = 0;
+    }
+
+    o->kind = ATTO_OBJECT_KIND_SYMBOL;
+
+    vm->current_instruction_offset += 1;
+    break;
+  }
+
   case ATTO_VM_OP_CAR: {
     struct atto_object *list = vm->data_stack[vm->data_stack_size - 1];
 
@@ -519,8 +534,8 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     }
 
     c->kind = ATTO_OBJECT_KIND_LIST;
-    c->container.list.car = b;
-    c->container.list.cdr = a;
+    c->container.list.car = a;
+    c->container.list.cdr = b;
 
     vm->data_stack_size--;
     vm->data_stack[vm->data_stack_size - 1] = c;
