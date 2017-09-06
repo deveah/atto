@@ -513,7 +513,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     }
 
     if (list->kind != ATTO_OBJECT_KIND_LIST) {
-      printf("fatal: attempting to perform `car' on an invalid operand\n");
+      printf("fatal: attempting to perform `cdr' on an invalid operand\n");
       vm->flags &= ~(ATTO_VM_FLAG_RUNNING);
       return;
     }

@@ -234,7 +234,7 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
     write_opcode(is, ATTO_VM_OP_CAR);
     return 1;
   } else if (strcmp(name, "cdr") == 0) {
-    write_opcode(is, ATTO_VM_OP_CAR);
+    write_opcode(is, ATTO_VM_OP_CDR);
     return 1;
   } else if (strcmp(name, "cons") == 0) {
     write_opcode(is, ATTO_VM_OP_CONS);
