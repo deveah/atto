@@ -52,24 +52,26 @@ static void pretty_print_object(struct atto_state *a, struct atto_object *o)
     break;
 
   }
-
-  printf("\n");
 }
 
 static void pretty_print_list(struct atto_state *a, struct atto_object *o)
 {
+  printf("(");
   pretty_print_object(a, o->container.list.car);
-  printf(" ");
 
   if (o->container.list.cdr->kind != ATTO_OBJECT_KIND_NULL) {
+    printf(" ");
     pretty_print_list(a, o->container.list.cdr);
   }
+
+  printf(")");
 }
 
 static void pretty_print_result(struct atto_state *a, struct atto_object *o)
 {
   printf(COLOR_YELLOW "[%lu] " COLOR_RESET, result_count++);
   pretty_print_object(a, o);
+  printf("\n");
 }
 
 void evaluate_string(struct atto_state *a, char *str)
@@ -95,7 +97,7 @@ void evaluate_string(struct atto_state *a, char *str)
           evaluate_thunk(a->vm_state, o);
         }
 
-        pretty_print_object(a, o);
+        pretty_print_result(a, o);
         break;
       }
 
@@ -119,7 +121,7 @@ void evaluate_string(struct atto_state *a, char *str)
       compile_definition(a, definition);
       /*pretty_print_stack(a->vm_state);*/
       
-      pretty_print_object(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
+      pretty_print_result(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
 
       destroy_expression(definition->body);
       free(definition->identifier);
@@ -137,7 +139,7 @@ void evaluate_string(struct atto_state *a, char *str)
       a->vm_state->current_instruction_offset = 0;
       atto_run_vm(a->vm_state);
 
-      pretty_print_object(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
+      pretty_print_result(a, a->vm_state->data_stack[a->vm_state->data_stack_size - 1]);
 
       destroy_expression(e);
     }
