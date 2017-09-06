@@ -16,7 +16,7 @@
 static void check_buffer(struct atto_instruction_stream *is, size_t length)
 {
   if (is->allocated_length - is->length < length) {
-    is->allocated_length *= 2;
+    is->allocated_length += length;
     is->stream = realloc(is->stream, sizeof(uint8_t) * is->allocated_length);
   }
 }
@@ -276,9 +276,7 @@ size_t compile_list_literal_expression(struct atto_state *a, struct atto_environ
 size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_lambda_expression *le)
 {
-  (void) is;
-
-  uint32_t i;
+  uint32_t i = le->number_of_parameters;
 
   struct atto_environment *local_env = (struct atto_environment *)malloc(sizeof(struct atto_environment));
   assert(local_env != NULL);
@@ -286,9 +284,10 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
   local_env->parent = env;
   local_env->head = NULL;
 
-  for (i = 0; i < le->number_of_parameters; i++) {
-    atto_add_to_environment(local_env, le->parameter_names[i], ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT, i);
-  }
+  do {
+    atto_add_to_environment(local_env, le->parameter_names[le->number_of_parameters - i], ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT, le->number_of_parameters - i);
+    i--;
+  } while (i > 0);
 
   struct atto_instruction_stream *lis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
   lis->length = 0;
@@ -302,6 +301,9 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
   a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = lis;
   a->vm_state->number_of_instruction_streams++;
 
+  write_opcode(is, ATTO_VM_OP_PUSHL);
+  write_offset(is, a->vm_state->number_of_instruction_streams - 1);
+
   return expression_length + return_length;
 }
 
@@ -314,7 +316,8 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   is->allocated_length = 32;
   is->stream = (uint8_t *)malloc(sizeof(uint8_t) * is->allocated_length);
 
-  a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = is;
+  size_t definition_instruction_stream_index = a->vm_state->number_of_instruction_streams;
+  a->vm_state->instruction_streams[definition_instruction_stream_index] = is;
   a->vm_state->number_of_instruction_streams++;
 
   atto_add_to_environment(a->global_environment, d->identifier, ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL, a->vm_state->data_stack_size);
@@ -326,10 +329,12 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   
   /*  immediate values are compiled and then executed, in order to be saved
    *  on the stack */
+  case ATTO_EXPRESSION_KIND_LAMBDA:
   case ATTO_EXPRESSION_KIND_NUMBER_LITERAL:
   case ATTO_EXPRESSION_KIND_SYMBOL_LITERAL:
   case ATTO_EXPRESSION_KIND_REFERENCE: {
-    atto_run_instruction_stream(a->vm_state, a->vm_state->number_of_instruction_streams - 1);
+    printf("running instruction stream %i\n", definition_instruction_stream_index);
+    atto_run_instruction_stream(a->vm_state, definition_instruction_stream_index);
     break;
   }
 
@@ -339,16 +344,6 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   case ATTO_EXPRESSION_KIND_IF:
   case ATTO_EXPRESSION_KIND_APPLICATION: {
     a->vm_state->heap[a->vm_state->heap_size].kind = ATTO_OBJECT_KIND_THUNK;
-    a->vm_state->heap[a->vm_state->heap_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
-    a->vm_state->heap_size++;
-
-    a->vm_state->data_stack[a->vm_state->data_stack_size] = &a->vm_state->heap[a->vm_state->heap_size - 1];
-    a->vm_state->data_stack_size++;
-    break;
-  }
-
-  case ATTO_EXPRESSION_KIND_LAMBDA: {
-    a->vm_state->heap[a->vm_state->heap_size].kind = ATTO_OBJECT_KIND_LAMBDA;
     a->vm_state->heap[a->vm_state->heap_size].container.instruction_stream_index = a->vm_state->number_of_instruction_streams - 1;
     a->vm_state->heap_size++;
 

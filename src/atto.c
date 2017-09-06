@@ -23,7 +23,7 @@ size_t result_count = 0;
 
 static void pretty_print_list(struct atto_state *a, struct atto_object *o);
 
-static void pretty_print_object(struct atto_state *a, struct atto_object *o)
+void pretty_print_object(struct atto_state *a, struct atto_object *o)
 {
   switch (o->kind) {
   

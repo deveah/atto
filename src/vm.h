@@ -45,13 +45,16 @@
 /*  stack operations */
 #define ATTO_VM_OP_PUSHN  0x40
 #define ATTO_VM_OP_PUSHS  0x41
-#define ATTO_VM_OP_PUSHZ  0x42
-#define ATTO_VM_OP_DUP    0x43
-#define ATTO_VM_OP_DROP   0x44
-#define ATTO_VM_OP_SWAP   0x45
-#define ATTO_VM_OP_GETGL  0x48
-#define ATTO_VM_OP_GETLC  0x49
-#define ATTO_VM_OP_GETAG  0x50
+#define ATTO_VM_OP_PUSHL  0x42
+#define ATTO_VM_OP_PUSHZ  0x43
+
+#define ATTO_VM_OP_DUP    0x48
+#define ATTO_VM_OP_DROP   0x49
+#define ATTO_VM_OP_SWAP   0x4a
+
+#define ATTO_VM_OP_GETGL  0x50
+#define ATTO_VM_OP_GETLC  0x51
+#define ATTO_VM_OP_GETAG  0x52
 
 struct atto_object {
   #define ATTO_OBJECT_KIND_NULL   0

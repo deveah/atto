@@ -473,14 +473,20 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
   case ATTO_VM_OP_ISNULL: {
     struct atto_object *o = vm->data_stack[vm->data_stack_size - 1];
+    struct atto_object *res = &vm->heap[vm->heap_size++];
+
+    if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+      printf("vm: % 04lu isnull\n", vm->current_instruction_offset);
+    }
     
+    res->kind = ATTO_OBJECT_KIND_SYMBOL;
     if (o->kind == ATTO_OBJECT_KIND_NULL) {
-      o->container.symbol = 1;
+      res->container.symbol = 1;
     } else {
-      o->container.symbol = 0;
+      res->container.symbol = 0;
     }
 
-    o->kind = ATTO_OBJECT_KIND_SYMBOL;
+    vm->data_stack[vm->data_stack_size - 1] = res;
 
     vm->current_instruction_offset += 1;
     break;
@@ -579,6 +585,25 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->data_stack_size++;
 
     vm->current_instruction_offset += 1 + sizeof(double);
+    break;
+  }
+
+  case ATTO_VM_OP_PUSHL: {
+    size_t index;
+    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
+
+    if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
+      printf("vm: %04lu push_lambda %lu\n", vm->current_instruction_offset, index);
+    }
+
+    vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_LAMBDA;
+    vm->heap[vm->heap_size].container.instruction_stream_index = index;
+    vm->heap_size++;
+
+    vm->data_stack[vm->data_stack_size] = &vm->heap[vm->heap_size - 1];
+    vm->data_stack_size++;
+
+    vm->current_instruction_offset += 1 + sizeof(size_t);
     break;
   }
 
