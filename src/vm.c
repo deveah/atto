@@ -53,9 +53,9 @@ void atto_destroy_vm_state(struct atto_vm_state *vm)
 void atto_vm_perform_step(struct atto_vm_state *vm)
 {
   struct atto_instruction_stream *current_instruction_stream = vm->instruction_streams[vm->current_instruction_stream_index];
-  uint8_t opcode = current_instruction_stream->stream[vm->current_instruction_offset];
+  struct atto_instruction *current_instruction = &current_instruction_stream->stream[vm->current_instruction_offset];
 
-  switch (opcode) {
+  switch (current_instruction->opcode) {
   
   case ATTO_VM_OP_NOP: {
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
@@ -120,23 +120,17 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
   }
 
   case ATTO_VM_OP_B: {
-    size_t offset;
-    memcpy(&offset, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu b %lu\n", vm->current_instruction_offset, offset);
+      printf("vm: %04lu b %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
-    vm->current_instruction_offset = offset;
+    vm->current_instruction_offset = current_instruction->container.offset;
     break;
   }
 
   case ATTO_VM_OP_BT: {
-    size_t offset;
-    memcpy(&offset, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu bt %lu\n", vm->current_instruction_offset, offset);
+      printf("vm: %04lu bt %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
     if (vm->heap[vm->data_stack[vm->data_stack_size-1]].kind != ATTO_OBJECT_KIND_SYMBOL) {
@@ -147,20 +141,17 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     vm->data_stack_size--;
     if (vm->heap[vm->data_stack[vm->data_stack_size]].container.symbol == 1) {
-      vm->current_instruction_offset = offset;
+      vm->current_instruction_offset = current_instruction->container.offset;
       break;
     }
 
-    vm->current_instruction_offset += sizeof(uint8_t) + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_BF: {
-    size_t offset;
-    memcpy(&offset, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu bt %lu\n", vm->current_instruction_offset, offset);
+      printf("vm: %04lu bt %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
     if (vm->heap[vm->data_stack[vm->data_stack_size-1]].kind != ATTO_OBJECT_KIND_SYMBOL) {
@@ -171,26 +162,23 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     vm->data_stack_size--;
     if (vm->heap[vm->data_stack[vm->data_stack_size]].container.symbol == 0) {
-      vm->current_instruction_offset = offset;
+      vm->current_instruction_offset = current_instruction->container.offset;
       break;
     }
 
-    vm->current_instruction_offset += sizeof(uint8_t) + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_CLOSE: {
-    size_t count;
-    memcpy(&count, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu close %lu\n", vm->current_instruction_offset, count);
+      printf("vm: %04lu close %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
-    vm->data_stack[vm->data_stack_size - count - 1] = vm->data_stack[vm->data_stack_size - 1];
-    vm->data_stack_size = vm->data_stack_size - count;
+    vm->data_stack[vm->data_stack_size - current_instruction->container.offset - 1] = vm->data_stack[vm->data_stack_size - 1];
+    vm->data_stack_size = vm->data_stack_size - current_instruction->container.offset;
 
-    vm->current_instruction_offset += 1 + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -232,7 +220,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = vm->heap[a].container.number + vm->heap[b].container.number;
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -265,7 +253,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = vm->heap[a].container.number - vm->heap[b].container.number;
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -298,7 +286,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = vm->heap[a].container.number * vm->heap[b].container.number;
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -331,7 +319,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = vm->heap[a].container.number * vm->heap[b].container.number;
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -364,7 +352,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = (vm->heap[a].container.number == vm->heap[b].container.number);
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -397,7 +385,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = (vm->heap[a].container.number < vm->heap[b].container.number);
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -430,7 +418,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = (vm->heap[a].container.number <= vm->heap[b].container.number);
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -463,7 +451,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = (vm->heap[a].container.number > vm->heap[b].container.number);
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -496,7 +484,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->heap[c].container.number = (vm->heap[a].container.number >= vm->heap[b].container.number);
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -529,7 +517,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     vm->data_stack[vm->data_stack_size - 1] = res;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -548,7 +536,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     vm->data_stack[vm->data_stack_size - 1] = vm->heap[list].container.list.car;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -567,7 +555,7 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
 
     vm->data_stack[vm->data_stack_size - 1] = vm->heap[list].container.list.cdr;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -587,64 +575,55 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     vm->data_stack_size--;
     vm->data_stack[vm->data_stack_size - 1] = c;
 
-    vm->current_instruction_offset += 1;
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_PUSHN: {
-    double number;
-    memcpy(&number, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(double));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu push_number %lf\n", vm->current_instruction_offset, number);
+      printf("vm: %04lu push_number %lf\n", vm->current_instruction_offset, current_instruction->container.number);
     }
 
     vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_NUMBER;
-    vm->heap[vm->heap_size].container.number = number;
+    vm->heap[vm->heap_size].container.number = current_instruction->container.number;
     vm->heap_size++;
 
     vm->data_stack[vm->data_stack_size] = vm->heap_size - 1;
     vm->data_stack_size++;
 
-    vm->current_instruction_offset += 1 + sizeof(double);
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_PUSHS: {
-    uint64_t symbol;
-    memcpy(&symbol, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(uint64_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu push_symbol %lu\n", vm->current_instruction_offset, symbol);
+      printf("vm: %04lu push_symbol %lu\n", vm->current_instruction_offset, current_instruction->container.symbol);
     }
 
     vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_SYMBOL;
-    vm->heap[vm->heap_size].container.symbol = symbol;
+    vm->heap[vm->heap_size].container.symbol = current_instruction->container.symbol;
     vm->heap_size++;
 
     vm->data_stack[vm->data_stack_size] = vm->heap_size - 1;
     vm->data_stack_size++;
 
-    vm->current_instruction_offset += 1 + sizeof(double);
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_PUSHL: {
-    size_t index;
-    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu push_lambda %lu\n", vm->current_instruction_offset, index);
+      printf("vm: %04lu push_lambda %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
     vm->heap[vm->heap_size].kind = ATTO_OBJECT_KIND_LAMBDA;
-    vm->heap[vm->heap_size].container.instruction_stream_index = index;
+    vm->heap[vm->heap_size].container.instruction_stream_index = current_instruction->container.offset;
     vm->heap_size++;
 
     vm->data_stack[vm->data_stack_size] = vm->heap_size - 1;
     vm->data_stack_size++;
 
-    vm->current_instruction_offset += 1 + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
@@ -668,53 +647,43 @@ void atto_vm_perform_step(struct atto_vm_state *vm)
     break;
 
   case ATTO_VM_OP_GETGL: {
-    size_t index;
-    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu getgl %lu\n", vm->current_instruction_offset, index);
+      printf("vm: %04lu getgl %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
-    vm->data_stack[vm->data_stack_size] = vm->data_stack[index];
+    vm->data_stack[vm->data_stack_size] = vm->data_stack[current_instruction->container.offset];
     vm->data_stack_size++;
 
-    vm->current_instruction_offset += 1 + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_GETLC: {
-    size_t index;
-    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: getlc %lu\n", index);
-      printf("vm: %04lu getlc %lu\n", vm->current_instruction_offset, index);
+      printf("vm: %04lu getlc %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
-    vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint + index];
+    vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint + current_instruction->container.offset];
     vm->data_stack_size++;
 
-    vm->current_instruction_offset += 1 + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
   case ATTO_VM_OP_GETAG: {
-    size_t index;
-    memcpy(&index, current_instruction_stream->stream + vm->current_instruction_offset + 1, sizeof(size_t));
-
     if (vm->flags & ATTO_VM_FLAG_VERBOSE) {
-      printf("vm: %04lu getag %lu\n", vm->current_instruction_offset, index);
+      printf("vm: %04lu getag %lu\n", vm->current_instruction_offset, current_instruction->container.offset);
     }
 
-    vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - index - 1];
+    vm->data_stack[vm->data_stack_size] = vm->data_stack[vm->call_stack[vm->call_stack_size - 1].stack_offset_at_entrypoint - current_instruction->container.offset - 1];
     vm->data_stack_size++;
 
-    vm->current_instruction_offset += 1 + sizeof(size_t);
+    vm->current_instruction_offset++;
     break;
   }
 
   default:
-    printf("vm: fatal: unknown opcode (0x%02x)\n", opcode);
+    printf("vm: fatal: unknown opcode (0x%02x)\n", current_instruction->opcode);
     exit(1);
   }
 

@@ -84,7 +84,7 @@ void evaluate_string(struct atto_state *a, char *str)
   struct atto_instruction_stream *is = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
   is->length = 0;
   is->allocated_length = 32;
-  is->stream = (uint8_t *)malloc(sizeof(uint8_t) * is->allocated_length);
+  is->stream = (struct atto_instruction *)malloc(sizeof(struct atto_instruction) * is->allocated_length);
 
   if (root->kind == ATTO_AST_NODE_IDENTIFIER) {
     struct atto_environment_object *current = a->global_environment->head;

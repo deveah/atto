@@ -13,52 +13,70 @@
 #include "state.h"
 #include "compiler.h"
 
-static void check_buffer(struct atto_instruction_stream *is, size_t length)
+static struct atto_instruction_stream *allocate_instruction_stream(void)
 {
-  if (is->allocated_length - is->length < length) {
-    is->allocated_length += length;
-    is->stream = realloc(is->stream, sizeof(uint8_t) * is->allocated_length);
+  struct atto_instruction_stream *is = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
+  assert(is != NULL);
+
+  is->length = 0;
+  is->allocated_length = 32;
+  is->stream = (struct atto_instruction *)malloc(sizeof(struct atto_instruction) * is->allocated_length);
+  assert(is->stream != NULL);
+
+  return is;
+}
+
+static void check_buffer(struct atto_instruction_stream *is)
+{
+  if (is->allocated_length == is->length - 1) {
+    is->allocated_length *= 2;
+    is->stream = realloc(is->stream, sizeof(struct atto_instruction_stream) * is->allocated_length);
   }
 }
 
-static size_t write_opcode(struct atto_instruction_stream *is, uint8_t opcode)
+static void concat_buffers(struct atto_instruction_stream *dest, struct atto_instruction_stream *src)
 {
-  check_buffer(is, sizeof(uint8_t));
-  
-  memcpy(is->stream + is->length, &opcode, sizeof(uint8_t));
-  is->length += sizeof(uint8_t);
+  if (dest->allocated_length - dest->length <= src->length) {
+    dest->allocated_length += src->length;
+    dest->stream = realloc(dest->stream, sizeof(struct atto_instruction_stream) * dest->allocated_length);
+  }
 
-  return sizeof(uint8_t);
+  size_t i;
+  for (i = 0; i < src->length; i++) {
+    dest->stream[dest->length+i] = src->stream[i];
+  }
+
+  dest->length += src->length;
 }
 
-static size_t write_number(struct atto_instruction_stream *is, double number)
+static void write_op_noarg(struct atto_instruction_stream *is, uint8_t opcode)
 {
-  check_buffer(is, sizeof(double));
-
-  memcpy(is->stream + is->length, &number, sizeof(double));
-  is->length += sizeof(double);
-
-  return sizeof(double);
+  check_buffer(is);
+  is->stream[is->length].opcode = opcode;
+  is->length++;
 }
 
-static size_t write_symbol(struct atto_instruction_stream *is, uint64_t symbol)
+static void write_op_number(struct atto_instruction_stream *is, uint8_t opcode, double number)
 {
-  check_buffer(is, sizeof(uint64_t));
-
-  memcpy(is->stream + is->length, &symbol, sizeof(uint64_t));
-  is->length += sizeof(uint64_t);
-
-  return sizeof(uint64_t);
+  check_buffer(is);
+  is->stream[is->length].opcode = opcode;
+  is->stream[is->length].container.number = number;
+  is->length++;
 }
 
-static size_t write_offset(struct atto_instruction_stream *is, size_t offset)
+static void write_op_symbol(struct atto_instruction_stream *is, uint8_t opcode, uint64_t symbol)
 {
-  check_buffer(is, sizeof(size_t));
+  check_buffer(is);
+  is->stream[is->length].opcode = opcode;
+  is->stream[is->length].container.symbol = symbol;
+}
 
-  memcpy(is->stream + is->length, &offset, sizeof(size_t));
-  is->length += sizeof(size_t);
-
-  return sizeof(size_t);
+static void write_op_offset(struct atto_instruction_stream *is, uint8_t opcode, size_t offset)
+{
+  check_buffer(is);
+  is->stream[is->length].opcode = opcode;
+  is->stream[is->length].container.offset = offset;
+  is->length++;
 }
 
 size_t compile_expression(struct atto_state *a, struct atto_environment *env,
@@ -67,15 +85,13 @@ size_t compile_expression(struct atto_state *a, struct atto_environment *env,
   (void) a;
 
   if (e->kind == ATTO_EXPRESSION_KIND_NUMBER_LITERAL) {
-    size_t os = write_opcode(is, ATTO_VM_OP_PUSHN);
-    size_t ns = write_number(is, e->container.number_literal);
-    return (os + ns);
+    write_op_number(is, ATTO_VM_OP_PUSHN, e->container.number_literal);
+    return 1;
   }
 
   if (e->kind == ATTO_EXPRESSION_KIND_SYMBOL_LITERAL) {
-    size_t os = write_opcode(is, ATTO_VM_OP_PUSHS);
-    size_t ss = write_symbol(is, e->container.symbol_literal);
-    return (os + ss);
+    write_op_symbol(is, ATTO_VM_OP_PUSHS, e->container.symbol_literal);
+    return 1;
   }
 
   if (e->kind == ATTO_EXPRESSION_KIND_REFERENCE) {
@@ -119,18 +135,16 @@ size_t compile_reference(struct atto_state *a, struct atto_environment *env,
   switch (eo->kind) {
 
   case ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL: {
-    write_opcode(is, ATTO_VM_OP_GETGL);
-    write_offset(is, eo->offset);
+    write_op_offset(is, ATTO_VM_OP_GETGL, eo->offset);
     break;
   }
 
   case ATTO_ENVIRONMENT_OBJECT_KIND_LOCAL:
-    printf("getlocal %lu\n", eo->offset);
+    write_op_offset(is, ATTO_VM_OP_GETLC, eo->offset);
     break;
 
   case ATTO_ENVIRONMENT_OBJECT_KIND_ARGUMENT: {
-    write_opcode(is, ATTO_VM_OP_GETAG);
-    write_offset(is, eo->offset);
+    write_op_offset(is, ATTO_VM_OP_GETAG, eo->offset);
     break;
   }
 
@@ -138,43 +152,27 @@ size_t compile_reference(struct atto_state *a, struct atto_environment *env,
     printf("fatal: unrecognised environment object kind: %i\n", eo->kind);
   }
 
-  return (1 + sizeof(uint64_t));
+  return 1;
 }
 
 size_t compile_if_expression(struct atto_state *a, struct atto_environment *env,
   struct atto_instruction_stream *is, struct atto_if_expression *ie)
 {
-  struct atto_instruction_stream *tis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
-  tis->length = 0;
-  tis->allocated_length = 32;
-  tis->stream = (uint8_t *)malloc(sizeof(uint8_t) * tis->allocated_length);
-
-  struct atto_instruction_stream *fis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
-  fis->length = 0;
-  fis->allocated_length = 32;
-  fis->stream = (uint8_t *)malloc(sizeof(uint8_t) * fis->allocated_length);
+  struct atto_instruction_stream *tis = allocate_instruction_stream(),
+                                 *fis = allocate_instruction_stream();
 
   compile_expression(a, env, is, ie->condition_expression);
   
   compile_expression(a, env, tis, ie->true_evaluation_expression);
   compile_expression(a, env, fis, ie->false_evaluation_expression);
 
-  write_opcode(is, ATTO_VM_OP_BF);
+  printf("true branch length=%lu\n", tis->length);
+  write_op_offset(is, ATTO_VM_OP_BF, is->length + tis->length + 2);
+  concat_buffers(is, tis);
 
-  /*  TODO explain black magic */
-  write_offset(is, is->length + tis->length + sizeof(size_t) + sizeof(uint8_t) + sizeof(size_t));
-
-  check_buffer(is, tis->length);
-  memcpy(is->stream + is->length, tis->stream, tis->length);
-  is->length += tis->length;
-
-  check_buffer(is, sizeof(uint8_t) + sizeof(size_t));
-  write_opcode(is, ATTO_VM_OP_B);
-  write_offset(is, is->length + fis->length + sizeof(size_t));
-
-  check_buffer(is, fis->length);
-  memcpy(is->stream + is->length, fis->stream, fis->length);
-  is->length += fis->length;
+  printf("false branch length=%lu\n", fis->length);
+  write_op_offset(is, ATTO_VM_OP_B, is->length + fis->length);
+  concat_buffers(is, fis);
 
   return 0;
 }
@@ -192,31 +190,31 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
 
   /*  we first see if it's a built-in function */
   if (strcmp(name, "add") == 0) {
-    write_opcode(is, ATTO_VM_OP_ADD);
+    write_op_noarg(is, ATTO_VM_OP_ADD);
     return 0;
   } else if (strcmp(name, "sub") == 0) {
-    write_opcode(is, ATTO_VM_OP_SUB);
+    write_op_noarg(is, ATTO_VM_OP_SUB);
     return 0;
   } else if (strcmp(name, "mul") == 0) {
-    write_opcode(is, ATTO_VM_OP_MUL);
+    write_op_noarg(is, ATTO_VM_OP_MUL);
     return 0;
   } else if (strcmp(name, "div") == 0) {
-    write_opcode(is, ATTO_VM_OP_DIV);
+    write_op_noarg(is, ATTO_VM_OP_DIV);
     return 0;
   } else if (strcmp(name, "gt") == 0) {
-    write_opcode(is, ATTO_VM_OP_ISGT);
+    write_op_noarg(is, ATTO_VM_OP_ISGT);
     return 0;
   } else if (strcmp(name, "get") == 0) {
-    write_opcode(is, ATTO_VM_OP_ISGET);
+    write_op_noarg(is, ATTO_VM_OP_ISGET);
     return 0;
   } else if (strcmp(name, "lt") == 0) {
-    write_opcode(is, ATTO_VM_OP_ISLT);
+    write_op_noarg(is, ATTO_VM_OP_ISLT);
     return 0;
   } else if (strcmp(name, "let") == 0) {
-    write_opcode(is, ATTO_VM_OP_ISLET);
+    write_op_noarg(is, ATTO_VM_OP_ISLET);
     return 0;
   } else if (strcmp(name, "eq") == 0) {
-    write_opcode(is, ATTO_VM_OP_ISEQ);
+    write_op_noarg(is, ATTO_VM_OP_ISEQ);
     return 0;
   } else if (strcmp(name, "is") == 0) {
     printf("isseq\n");
@@ -231,23 +229,22 @@ size_t compile_application_expression(struct atto_state *a, struct atto_environm
     printf("not\n");
     return 1;
   } else if (strcmp(name, "car") == 0) {
-    write_opcode(is, ATTO_VM_OP_CAR);
+    write_op_noarg(is, ATTO_VM_OP_CAR);
     return 1;
   } else if (strcmp(name, "cdr") == 0) {
-    write_opcode(is, ATTO_VM_OP_CDR);
+    write_op_noarg(is, ATTO_VM_OP_CDR);
     return 1;
   } else if (strcmp(name, "cons") == 0) {
-    write_opcode(is, ATTO_VM_OP_CONS);
+    write_op_noarg(is, ATTO_VM_OP_CONS);
     return 1;
   } else if (strcmp(name, "null") == 0) {
-    write_opcode(is, ATTO_VM_OP_ISNULL);
+    write_op_noarg(is, ATTO_VM_OP_ISNULL);
     return 1;
   }
 
   compile_reference(a, env, is, ae->identifier);
-  write_opcode(is, ATTO_VM_OP_CALL);
-  write_opcode(is, ATTO_VM_OP_CLOSE);
-  write_offset(is, ae->number_of_parameters);
+  write_op_noarg(is, ATTO_VM_OP_CALL);
+  write_op_offset(is, ATTO_VM_OP_CLOSE, ae->number_of_parameters);
 
   return 0;
 }
@@ -257,7 +254,7 @@ size_t compile_list_literal_expression(struct atto_state *a, struct atto_environ
 {
   int i = lle->number_of_elements;
 
-  write_opcode(is, ATTO_VM_OP_PUSHZ);
+  write_op_noarg(is, ATTO_VM_OP_PUSHZ);
 
   if (lle->number_of_elements == 0) {
     return 1;
@@ -266,7 +263,7 @@ size_t compile_list_literal_expression(struct atto_state *a, struct atto_environ
   do {
     /*  TODO: wrap expressions in individual thunks */
     compile_expression(a, env, is, lle->elements[i - 1]);
-    write_opcode(is, ATTO_VM_OP_CONS);
+    write_op_noarg(is, ATTO_VM_OP_CONS);
     i--;
   } while (i > 0);
 
@@ -289,33 +286,24 @@ size_t compile_lambda_expression(struct atto_state *a, struct atto_environment *
     i--;
   } while (i > 0);
 
-  struct atto_instruction_stream *lis = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
-  lis->length = 0;
-  lis->allocated_length = 32;
-  lis->stream = (uint8_t *)malloc(sizeof(uint8_t) * lis->allocated_length);
+  struct atto_instruction_stream *lis = allocate_instruction_stream();
 
-  size_t expression_length = compile_expression(a, local_env, lis, le->body);
-  size_t return_length = write_opcode(lis, ATTO_VM_OP_RET);
+  compile_expression(a, local_env, lis, le->body);
+  write_op_noarg(lis, ATTO_VM_OP_RET);
 
   /*  add to instruction stream table */
   a->vm_state->instruction_streams[a->vm_state->number_of_instruction_streams] = lis;
   a->vm_state->number_of_instruction_streams++;
 
-  write_opcode(is, ATTO_VM_OP_PUSHL);
-  write_offset(is, a->vm_state->number_of_instruction_streams - 1);
+  write_op_offset(is, ATTO_VM_OP_PUSHL, a->vm_state->number_of_instruction_streams - 1);
 
-  return expression_length + return_length;
+  return 0;
 }
 
 void compile_definition(struct atto_state *a, struct atto_definition *d)
 {
-  struct atto_instruction_stream *is = NULL;
+  struct atto_instruction_stream *is = allocate_instruction_stream();
   
-  is = (struct atto_instruction_stream *)malloc(sizeof(struct atto_instruction_stream));
-  is->length = 0;
-  is->allocated_length = 32;
-  is->stream = (uint8_t *)malloc(sizeof(uint8_t) * is->allocated_length);
-
   size_t definition_instruction_stream_index = a->vm_state->number_of_instruction_streams;
   a->vm_state->instruction_streams[definition_instruction_stream_index] = is;
   a->vm_state->number_of_instruction_streams++;
@@ -323,7 +311,7 @@ void compile_definition(struct atto_state *a, struct atto_definition *d)
   atto_add_to_environment(a->global_environment, d->identifier, ATTO_ENVIRONMENT_OBJECT_KIND_GLOBAL, a->vm_state->data_stack_size);
 
   compile_expression(a, a->global_environment, is, d->body);
-  write_opcode(is, ATTO_VM_OP_STOP);
+  write_op_noarg(is, ATTO_VM_OP_STOP);
 
   switch (d->body->kind) {
   
@@ -365,7 +353,7 @@ void pretty_print_instruction_stream(struct atto_instruction_stream *is)
   printf("instruction stream size=%lu alloc=%lu\n", is->length, is->allocated_length);
 
   for (i = 0; i < is->length; i++) {
-    printf("0x%02x ", is->stream[i]);
+    printf("0x%02x 0x%016llx\n", is->stream[i].opcode, (unsigned long long)is->stream[i].container.number);
     if (i % 8 == 7) {
       printf("\n");
     }
