@@ -1,3 +1,3 @@
 # Atto
-A small and fast subset-of-Scheme JIT interpreter
+A small subset-of-Scheme interpreter
 
